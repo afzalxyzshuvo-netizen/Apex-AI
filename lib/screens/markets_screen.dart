@@ -23,7 +23,6 @@ class _MarketsScreenState extends State<MarketsScreen> {
 
   bool _isForexWeekend() {
     final now = DateTime.now().toUtc();
-    // Forex closes Friday 21:00 UTC and opens Sunday 21:00 UTC
     if (now.weekday == DateTime.saturday) return true;
     if (now.weekday == DateTime.friday && now.hour >= 21) return true;
     if (now.weekday == DateTime.sunday && now.hour < 21) return true;
@@ -40,18 +39,16 @@ class _MarketsScreenState extends State<MarketsScreen> {
       {'sym': 'EURUSD', 'name': 'Euro / US Dollar', 'forex': true},
       {'sym': 'GBPUSD', 'name': 'British Pound / US Dollar', 'forex': true},
       {'sym': 'USDJPY', 'name': 'US Dollar / Japanese Yen', 'forex': true},
-      {'sym': 'AUDUSD', 'name': 'Australian Dollar / US Dollar', 'forex': true},
-      {'sym': 'USDCAD', 'name': 'US Dollar / Canadian Dollar', 'forex': true},
     ];
 
     for (var s in symbols) {
       final sym = s['sym'] as String;
       final name = s['name'] as String;
       final isForex = s['forex'] as bool;
-      final isOpen = isForex ? isForexOpen : true; // Spot Gold via crypto is 24/7
+      final isOpen = isForex ? isForexOpen : true;
 
       try {
-        final candles = await _dataService.fetchCandles(sym, interval: '15m');
+        final candles = await _dataService.fetchLiveCandles(sym, timeframe: '15m');
         if (candles.isNotEmpty) {
           final current = candles.last.close;
           final first = candles.first.open;
@@ -70,9 +67,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
             source: sym == 'XAUUSD' ? 'Binance 24/7' : 'Yahoo Live',
           ));
         }
-      } catch (_) {
-        // Fallback default info
-      }
+      } catch (_) {}
     }
 
     if (mounted) {
@@ -112,7 +107,6 @@ class _MarketsScreenState extends State<MarketsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Weekend Market Notification Banner
               if (forexClosed)
                 Container(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -164,7 +158,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
                       SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          '🟢 Global Forex & Spot Gold Markets are LIVE',
+                          'Global Forex & Spot Gold Markets are LIVE',
                           style: TextStyle(
                             color: Colors.greenAccent,
                             fontWeight: FontWeight.bold,
@@ -212,7 +206,6 @@ class _MarketsScreenState extends State<MarketsScreen> {
                       ),
                       child: Row(
                         children: [
-                          // Pair Icon
                           Container(
                             width: 44,
                             height: 44,
@@ -232,7 +225,6 @@ class _MarketsScreenState extends State<MarketsScreen> {
                             ),
                           ),
                           const SizedBox(width: 14),
-                          // Name & Source
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,7 +265,6 @@ class _MarketsScreenState extends State<MarketsScreen> {
                               ],
                             ),
                           ),
-                          // Price & Change
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
