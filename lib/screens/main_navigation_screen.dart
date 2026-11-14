@@ -83,7 +83,6 @@ class SignalsHomeScreen extends StatefulWidget {
 
 class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
   final MarketDataService _dataService = MarketDataService();
-  final InstitutionalEngine _engine = InstitutionalEngine();
 
   List<TradeSignal> _activeSignals = [];
   bool _isScanning = false;
@@ -111,10 +110,10 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
 
     for (final sym in symbols) {
       try {
-        final candles = await _dataService.fetchCandles(sym, interval: '15m');
+        final candles = await _dataService.fetchLiveCandles(sym, timeframe: '15m');
         if (candles.length >= 25) {
-          final signal = _engine.analyze(candles, sym);
-          if (signal != null && signal.confluenceScore >= 80) {
+          final signal = InstitutionalEngine.analyzeSignal(candles, sym);
+          if (signal.action != 'WAIT') {
             foundSignals.add(signal);
           }
         }
@@ -175,7 +174,7 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Live Status Header Banner
+            // Header Banner
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -266,7 +265,7 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
                 itemCount: _activeSignals.length,
                 itemBuilder: (context, index) {
                   final sig = _activeSignals[index];
-                  final isBuy = sig.type == SignalType.buy;
+                  final isBuy = sig.action.contains('BUY');
                   return Container(
                     margin: const EdgeInsets.only(bottom: 16),
                     padding: const EdgeInsets.all(18),
@@ -300,7 +299,7 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
-                                    isBuy ? 'STRONG BUY' : 'STRONG SELL',
+                                    sig.action,
                                     style: TextStyle(
                                       color: isBuy ? Colors.greenAccent : Colors.redAccent,
                                       fontWeight: FontWeight.w900,
@@ -326,7 +325,7 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                '${sig.confluenceScore.toStringAsFixed(0)}% WIN SCORE',
+                                '${sig.winRatio} WIN SCORE',
                                 style: const TextStyle(
                                   color: Color(0xFFFFB800),
                                   fontWeight: FontWeight.bold,
@@ -340,7 +339,7 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            _buildPriceCol('ENTRY', sig.entryPrice.toString()),
+                            _buildPriceCol('ENTRY ZONE', sig.entryZone),
                             _buildPriceCol('STOP LOSS', sig.stopLoss.toString(), isSl: true),
                             _buildPriceCol('TARGET (TP1)', sig.takeProfit1.toString(), isTp: true),
                           ],
@@ -349,7 +348,7 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
                         const Divider(color: Color(0xFF1E293B)),
                         const SizedBox(height: 6),
                         Text(
-                          'Analysis: ${sig.reason}',
+                          'Confluences: ${sig.reasons.join(" • ")}',
                           style: TextStyle(color: Colors.grey[400], fontSize: 11),
                         ),
                       ],
