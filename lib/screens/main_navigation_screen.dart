@@ -112,7 +112,7 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
       try {
         final candles = await _dataService.fetchLiveCandles(sym, timeframe: '15m');
         if (candles.length >= 25) {
-          final signal = InstitutionalEngine.analyzeSignal(candles, sym);
+          final signal = InstitutionalEngine.evaluate(symbol: sym, candles: candles);
           if (signal.action != 'WAIT') {
             foundSignals.add(signal);
           }
