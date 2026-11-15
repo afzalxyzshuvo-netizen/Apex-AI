@@ -5,6 +5,8 @@ import '../services/market_data_service.dart';
 import '../services/institutional_engine.dart';
 import 'markets_screen.dart';
 import 'history_analytics_screen.dart';
+import 'news_screen.dart';
+import 'capital_calculator_screen.dart';
 import 'profile_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
@@ -23,6 +25,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final screens = [
       const SignalsHomeScreen(),
       const MarketsScreen(),
+      const NewsScreen(),
+      const CapitalCalculatorScreen(),
       const HistoryAnalyticsScreen(),
       ProfileScreen(onLogout: widget.onLogout),
     ];
@@ -43,19 +47,29 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           backgroundColor: const Color(0xFF131B2A),
           selectedItemColor: const Color(0xFFFFB800),
           unselectedItemColor: Colors.grey[500],
-          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
-          unselectedLabelStyle: const TextStyle(fontSize: 10),
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+          unselectedLabelStyle: const TextStyle(fontSize: 9),
           type: BottomNavigationBarType.fixed,
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.bolt_outlined),
               activeIcon: Icon(Icons.bolt),
-              label: 'AI Signals',
+              label: 'Signals',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.show_chart_outlined),
-              activeIcon: Icon(Icons.show_chart),
+              icon: Icon(Icons.candlestick_chart_outlined),
+              activeIcon: Icon(Icons.candlestick_chart),
               label: 'Markets',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.newspaper_outlined),
+              activeIcon: Icon(Icons.newspaper),
+              label: 'News',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.calculate_outlined),
+              activeIcon: Icon(Icons.calculate),
+              label: 'Capital',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.analytics_outlined),
@@ -83,7 +97,6 @@ class SignalsHomeScreen extends StatefulWidget {
 
 class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
   final MarketDataService _dataService = MarketDataService();
-
   List<TradeSignal> _activeSignals = [];
   bool _isScanning = false;
   Timer? _timer;
@@ -92,7 +105,8 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
   void initState() {
     super.initState();
     _scanMarket();
-    _timer = Timer.periodic(const Duration(seconds: 45), (_) => _scanMarket());
+    // Ultra-fast 10-second scanner
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) => _scanMarket());
   }
 
   @override
@@ -101,14 +115,27 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
     super.dispose();
   }
 
+  // Check if current time is within BD Trading Window (8:00 AM to 11:00 PM)
+  bool _isWithinBangladeshHours() {
+    final nowUtc = DateTime.now().toUtc();
+    final bdTime = nowUtc.add(const Duration(hours: 6)); // UTC+6
+    return bdTime.hour >= 8 && bdTime.hour < 23;
+  }
+
   Future<void> _scanMarket() async {
     if (_isScanning) return;
     setState(() => _isScanning = true);
 
-    final symbols = ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY'];
+    // If outside 8 AM - 11 PM BD time, pause signals to protect sleep & low-liquidity slippage
+    if (!_isWithinBangladeshHours()) {
+      if (mounted) setState(() => _isScanning = false);
+      return;
+    }
+
+    final targetSymbols = ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'GBPJPY', 'USOIL', 'BTCUSD'];
     List<TradeSignal> foundSignals = [];
 
-    for (final sym in symbols) {
+    for (final sym in targetSymbols) {
       try {
         final candles = await _dataService.fetchLiveCandles(sym, timeframe: '15m');
         if (candles.length >= 25) {
@@ -130,6 +157,8 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isTradingWindow = _isWithinBangladeshHours();
+
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E17),
       appBar: AppBar(
@@ -151,8 +180,8 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
             ),
             const SizedBox(width: 10),
             const Text(
-              'Apex AI Signals',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 0.8),
+              'ZAVRO AI',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, letterSpacing: 1.2),
             ),
           ],
         ),
@@ -174,7 +203,7 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Banner
+            // Active Session & Window Banner
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -189,29 +218,31 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
                   Container(
                     width: 10,
                     height: 10,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.greenAccent,
+                      color: isTradingWindow ? Colors.greenAccent : Colors.orangeAccent,
                     ),
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'INSTITUTIONAL AI SCANNER ACTIVE',
-                          style: TextStyle(
+                          isTradingWindow ? 'ZAVRO LIVE SESSION ACTIVE' : 'MARKET REST HOURS (11:00 PM - 8:00 AM BD)',
+                          style: const TextStyle(
                             color: Color(0xFFFFB800),
                             fontSize: 11,
                             fontWeight: FontWeight.w900,
-                            letterSpacing: 1.0,
+                            letterSpacing: 0.8,
                           ),
                         ),
-                        SizedBox(height: 2),
+                        const SizedBox(height: 2),
                         Text(
-                          'SMC • ICT • Order Blocks • FVG • Liquidity Pools',
-                          style: TextStyle(color: Colors.white70, fontSize: 11),
+                          isTradingWindow
+                              ? 'Active Hours: 8:00 AM to 11:00 PM • Fast 2-3h Swings'
+                              : 'Signals resume at 8:00 AM BD time to prevent low liquidity traps.',
+                          style: const TextStyle(color: Colors.white70, fontSize: 11),
                         ),
                       ],
                     ),
@@ -220,22 +251,48 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
             const Text(
-              'HIGH CONFLUENCE LIVE OPPORTUNITIES',
+              'INSTITUTIONAL HIGH-PROBABILITY SETUPS',
               style: TextStyle(
                 color: Color(0xFFFFB800),
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w800,
                 letterSpacing: 1.0,
               ),
             ),
             const SizedBox(height: 12),
 
-            if (_activeSignals.isEmpty)
+            if (!isTradingWindow)
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF131B2A),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF1E293B)),
+                ),
+                child: const Column(
+                  children: [
+                    Icon(Icons.bedtime_outlined, size: 44, color: Colors.amber),
+                    SizedBox(height: 10),
+                    Text(
+                      'Session Paused (Night Window)',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Zavro AI is in overnight standby. All active charts & news are live.\nTrading signals reopen at 8:00 AM sharp.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey, fontSize: 11),
+                    ),
+                  ],
+                ),
+              )
+            else if (_activeSignals.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
                 decoration: BoxDecoration(
                   color: const Color(0xFF131B2A),
                   borderRadius: BorderRadius.circular(16),
@@ -243,17 +300,17 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
                 ),
                 child: Column(
                   children: [
-                    Icon(Icons.shield_outlined, size: 48, color: Colors.grey[600]),
-                    const SizedBox(height: 12),
+                    Icon(Icons.shield_outlined, size: 44, color: Colors.grey[600]),
+                    const SizedBox(height: 10),
                     const Text(
                       'Capital Protection Mode Active',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
                     Text(
-                      'No trades match the 85%+ institutional confluence filter right now.\nScanning 24/7 every 45s for high-probability setups.',
+                      'Scanning 24/7 with 3s low latency.\nSignals trigger only when 85%+ confluences match for 2-3h target hits.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[400], fontSize: 12, height: 1.4),
+                      style: TextStyle(color: Colors.grey[400], fontSize: 11),
                     ),
                   ],
                 ),
@@ -267,22 +324,15 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
                   final sig = _activeSignals[index];
                   final isBuy = sig.action.contains('BUY');
                   return Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(18),
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: const Color(0xFF131B2A),
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: isBuy ? Colors.green.withOpacity(0.5) : Colors.red.withOpacity(0.5),
                         width: 1.5,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (isBuy ? Colors.green : Colors.red).withOpacity(0.15),
-                          blurRadius: 15,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,7 +343,7 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
                             Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
                                     color: (isBuy ? Colors.green : Colors.red).withOpacity(0.2),
                                     borderRadius: BorderRadius.circular(6),
@@ -303,39 +353,31 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
                                     style: TextStyle(
                                       color: isBuy ? Colors.greenAccent : Colors.redAccent,
                                       fontWeight: FontWeight.w900,
-                                      fontSize: 12,
+                                      fontSize: 11,
                                     ),
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  sig.symbol == 'XAUUSD' ? 'XAU/USD (Gold)' : sig.symbol,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
+                                  sig.symbol,
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                                 ),
                               ],
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFFFB800).withOpacity(0.15),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
                                 '${sig.winRatio} WIN SCORE',
-                                style: const TextStyle(
-                                  color: Color(0xFFFFB800),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 11,
-                                ),
+                                style: const TextStyle(color: Color(0xFFFFB800), fontWeight: FontWeight.bold, fontSize: 11),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 12),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -344,12 +386,15 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
                             _buildPriceCol('TARGET (TP1)', sig.takeProfit1.toString(), isTp: true),
                           ],
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         const Divider(color: Color(0xFF1E293B)),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Confluences: ${sig.reasons.join(" • ")}',
-                          style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Holding: 2 - 3 Hours', style: TextStyle(color: Colors.grey[400], fontSize: 11)),
+                            Text('RRR: ${sig.riskReward}', style: const TextStyle(color: Color(0xFFFFB800), fontWeight: FontWeight.bold, fontSize: 11)),
+                          ],
                         ),
                       ],
                     ),
@@ -370,15 +415,9 @@ class _SignalsHomeScreenState extends State<SignalsHomeScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: TextStyle(color: Colors.grey[500], fontSize: 10, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          value,
-          style: TextStyle(color: col, fontWeight: FontWeight.w800, fontSize: 14),
-        ),
+        Text(label, style: TextStyle(color: Colors.grey[500], fontSize: 9, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 2),
+        Text(value, style: TextStyle(color: col, fontWeight: FontWeight.w800, fontSize: 13)),
       ],
     );
   }
