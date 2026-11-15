@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/app_models.dart';
+import 'learn_trading_book_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -16,8 +16,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _phone = '+8801700000000';
   String _uid = 'ZVR-849201';
 
-  // Interactive Settings State
-  String _timeframe = '15m to 1h (Swing)';
   bool _audioAlerts = true;
   bool _vibration = true;
   String _selectedSound = 'Loud Siren Alert (85dB)';
@@ -35,7 +33,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _email = prefs.getString('user_email') ?? 'afzalxyzshuvo@gmail.com';
       _phone = prefs.getString('user_phone') ?? '+8801700000000';
       _uid = prefs.getString('user_uid') ?? 'ZVR-849201';
-      _timeframe = prefs.getString('setting_tf') ?? '15m to 1h (Swing)';
       _audioAlerts = prefs.getBool('setting_audio') ?? true;
       _vibration = prefs.getBool('setting_vib') ?? true;
       _selectedSound = prefs.getString('setting_sound') ?? 'Loud Siren Alert (85dB)';
@@ -46,57 +43,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final prefs = await SharedPreferences.getInstance();
     if (val is String) await prefs.setString(key, val);
     if (val is bool) await prefs.setBool(key, val);
-  }
-
-  void _showTradingEngineModal() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF131B2A),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Trading Engine & Timeframe Settings', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                  const SizedBox(height: 6),
-                  Text('Select analysis timeframe for SMC / ICT confluences', style: TextStyle(color: Colors.grey[400], fontSize: 12)),
-                  const SizedBox(height: 16),
-                  _buildRadioOption('15m to 1h (Institutional Standard)', _timeframe, (v) {
-                    setState(() => _timeframe = v);
-                    setModalState(() => _timeframe = v);
-                    _saveSetting('setting_tf', v);
-                  }),
-                  _buildRadioOption('5m to 15m (Quick Scalp)', _timeframe, (v) {
-                    setState(() => _timeframe = v);
-                    setModalState(() => _timeframe = v);
-                    _saveSetting('setting_tf', v);
-                  }),
-                  _buildRadioOption('1h to 4h (HTF Swing)', _timeframe, (v) {
-                    setState(() => _timeframe = v);
-                    setModalState(() => _timeframe = v);
-                    _saveSetting('setting_tf', v);
-                  }),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context),
-                      style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFFB800), foregroundColor: Colors.black),
-                      child: const Text('SAVE & APPLY SETTINGS', style: TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
   }
 
   void _showAudioSettingsModal() {
@@ -225,52 +171,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showLearnTradingModal() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF131B2A),
-          title: const Row(
-            children: [
-              Icon(Icons.menu_book, color: Color(0xFFFFB800)),
-              SizedBox(width: 8),
-              Text('Learn Trading (ICT & SMC)', style: TextStyle(color: Colors.white, fontSize: 16)),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Step-by-Step Educational Curriculum:', style: TextStyle(color: Color(0xFFFFB800), fontWeight: FontWeight.bold, fontSize: 13)),
-                const SizedBox(height: 8),
-                Text(
-                  '📖 Chapter 1: Market Structure (BOS vs CHoCH)\n'
-                  'Learn how smart money shifts market direction by breaking previous swing highs and lows.\n\n'
-                  '📖 Chapter 2: Order Blocks (OB)\n'
-                  'The last opposite candle before an aggressive displacement move where institutional banks place million-dollar orders.\n\n'
-                  '📖 Chapter 3: Fair Value Gaps (FVG)\n'
-                  '3-candle price imbalance where liquidity is skipped. Price always seeks to fill unmitigated FVGs.\n\n'
-                  '📖 Chapter 4: Liquidity Pools & Sweeps\n'
-                  'Equal highs and equal lows where retail traders put stop losses. Institutions sweep these levels before massive reversals.\n\n'
-                  '📖 Chapter 5: Optimal Trade Entry (OTE)\n'
-                  'Using Fibonacci 0.618 to 0.786 discount arrays for sniper entries.',
-                  style: TextStyle(color: Colors.grey[300], fontSize: 12, height: 1.4),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('CLOSE', style: TextStyle(color: Color(0xFFFFB800))),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   void _showAboutZavroModal() {
     showDialog(
       context: context,
@@ -302,7 +202,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text(
                   'Zavro AI is a state-of-the-art institutional trading intelligence system built for high-probability Forex, Gold, and Crypto trading.\n\n'
                   '• Model: Zavro Institutional SMC/ICT v3.0\n'
-                  '• Latency: Ultra-low 3s-5s Direct WebSocket Feed\n'
+                  '• Latency: Ultra-low 2s-3s Direct Binance & Interbank Feed\n'
                   '• Filter: 85%+ Multi-Strategy Confluence\n'
                   '• Session: Active 8:00 AM to 11:00 PM (BD Time)\n'
                   '• Privacy: Local Encrypted Storage & Private Cloud',
@@ -322,16 +222,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildRadioOption(String title, String currentVal, Function(String) onSelect) {
-    return RadioListTile<String>(
-      title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 13)),
-      value: title,
-      groupValue: currentVal,
-      activeColor: const Color(0xFFFFB800),
-      onChanged: (v) { if (v != null) onSelect(v); },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -345,7 +235,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Avatar & Profile Header
+            // Profile Header Card
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -387,12 +277,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
 
             const SizedBox(height: 20),
-            // Active Interactive Options
+            // Open Interactive SMC & ICT Full Book Screen
             _buildActionTile(
-              Icons.tune,
-              'Trading Engine Settings',
-              _timeframe,
-              _showTradingEngineModal,
+              Icons.menu_book,
+              'Learn Trading (ICT & SMC)',
+              'সম্পূর্ণ প্রাতিষ্ঠানিক বই ও অধ্যায়ভিত্তিক গাইড',
+              () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LearnTradingBookScreen()),
+                );
+              },
             ),
             _buildActionTile(
               Icons.notifications_active_outlined,
@@ -403,14 +298,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _buildActionTile(
               Icons.shield_outlined,
               'Risk Management Guidelines',
-              '1-2% Rule & Lot Size Guide',
+              '১-২% রিস্ক রুলস এবং সেফ মানি গাইডলাইন',
               _showRiskManagementModal,
-            ),
-            _buildActionTile(
-              Icons.menu_book,
-              'Learn Trading (ICT & SMC)',
-              'Step-by-step Masterclass Guide',
-              _showLearnTradingModal,
             ),
             _buildActionTile(
               Icons.support_agent,
@@ -430,7 +319,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
 
             const SizedBox(height: 28),
-            // Sign Out Button
+            // Sign Out
             SizedBox(
               width: double.infinity,
               height: 48,
