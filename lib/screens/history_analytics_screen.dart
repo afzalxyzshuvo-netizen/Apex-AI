@@ -287,7 +287,7 @@ class _HistoryAnalyticsScreenState extends State<HistoryAnalyticsScreen> {
             else
               ListView.builder(
                 shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics>,
+                physics: const NeverScrollableScrollPhysics(),
                 itemCount: _tradeLogs.length,
                 itemBuilder: (context, index) {
                   final log = _tradeLogs[index];
