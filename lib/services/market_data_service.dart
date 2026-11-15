@@ -3,13 +3,13 @@ import 'package:http/http.dart' as http;
 import '../models/trade_signal.dart';
 
 class MarketDataService {
-  // Mapping symbols to endpoints
+  // Direct High-Frequency 24/7 Spot Endpoints (Binance) & Yahoo Finance
   static const Map<String, String> symbolMap = {
-    // Crypto 24/7 (Direct Binance Spot)
+    // 24/7 Crypto & Gold Spot
     'BTC': 'BTCUSDT',
     'ETH': 'ETHUSDT',
     'SOL': 'SOLUSDT',
-    'XAUUSD': 'PAXGUSDT', // 24/7 Gold Spot 1:1
+    'XAUUSD': 'PAXGUSDT', // 1:1 Physical Gold Spot
     
     // Forex
     'EURUSD': 'EURUSD=X',
@@ -20,7 +20,7 @@ class MarketDataService {
     'AUDUSD': 'AUDUSD=X',
     'USDCAD': 'CAD=X',
     
-    // Commodities & Indices
+    // Commodities & World Indices
     'USOIL': 'CL=F',
     'UKOIL': 'BZ=F',
     'NGUSD': 'NG=F',
@@ -29,12 +29,11 @@ class MarketDataService {
     'US100': '^IXIC',
   };
 
-  // Convert app timeframe strings to Binance interval format
   static String toBinanceInterval(String tf) {
     switch (tf) {
       case '1m': return '1m';
       case '5m': return '5m';
-      case '10m': return '15m'; // closest binance interval
+      case '10m': return '15m';
       case '15m': return '15m';
       case '30m': return '30m';
       case '40m': return '1h';
@@ -45,10 +44,31 @@ class MarketDataService {
     }
   }
 
+  // Ultra-Fast Live Price Ticker (Instant 0 to 1 sec response from Binance)
+  Future<double?> fetchInstantPrice(String symbol) async {
+    String resolved = symbolMap[symbol] ?? symbol;
+    if (symbol == 'BTC') resolved = 'BTCUSDT';
+    if (symbol == 'ETH') resolved = 'ETHUSDT';
+    if (symbol == 'SOL') resolved = 'SOLUSDT';
+
+    if (resolved.endsWith('USDT')) {
+      try {
+        final url = Uri.parse('https://api.binance.com/api/v3/ticker/price?symbol=$resolved');
+        final res = await http.get(url).timeout(const Duration(seconds: 2));
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          return double.tryParse(data['price'].toString());
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
   Future<List<Candle>> fetchLiveCandles(String symbol, {String timeframe = '15m'}) async {
     String resolved = symbolMap[symbol] ?? symbol;
     if (symbol == 'BTC') resolved = 'BTCUSDT';
     if (symbol == 'ETH') resolved = 'ETHUSDT';
+    if (symbol == 'SOL') resolved = 'SOLUSDT';
 
     if (resolved.endsWith('USDT')) {
       return await _fetchBinanceKlines(resolved, toBinanceInterval(timeframe));
@@ -59,8 +79,8 @@ class MarketDataService {
 
   Future<List<Candle>> _fetchBinanceKlines(String ticker, String interval) async {
     try {
-      final url = Uri.parse('https://api.binance.com/api/v3/klines?symbol=$ticker&interval=$interval&limit=100');
-      final res = await http.get(url).timeout(const Duration(seconds: 4));
+      final url = Uri.parse('https://api.binance.com/api/v3/klines?symbol=$ticker&interval=$interval&limit=80');
+      final res = await http.get(url).timeout(const Duration(seconds: 3));
 
       if (res.statusCode == 200) {
         final List<dynamic> list = jsonDecode(res.body);
@@ -89,7 +109,7 @@ class MarketDataService {
       else if (interval == '1d') { range = '1mo'; yInterval = '1d'; }
 
       final url = Uri.parse('https://query1.finance.yahoo.com/v8/finance/chart/$ticker?range=$range&interval=$yInterval');
-      final res = await http.get(url, headers: {'User-Agent': 'Mozilla/5.0'}).timeout(const Duration(seconds: 4));
+      final res = await http.get(url, headers: {'User-Agent': 'Mozilla/5.0'}).timeout(const Duration(seconds: 3));
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body);
