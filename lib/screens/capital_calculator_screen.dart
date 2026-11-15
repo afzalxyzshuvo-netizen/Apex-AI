@@ -9,18 +9,36 @@ class CapitalCalculatorScreen extends StatefulWidget {
 }
 
 class _CapitalCalculatorScreenState extends State<CapitalCalculatorScreen> {
-  final _balanceController = TextEditingController(text: '500');
-  double _riskPercent = 1.5;
-  double _accountBalance = 500.0;
-  String _selectedPair = 'XAUUSD (Gold)';
+  final _balanceController = TextEditingController(text: '100');
+  double _accountBalance = 100.0;
+  String _selectedPair = 'XAUUSD (Gold Spot)';
+
+  // All Tradable Pairs List
+  final List<String> _allPairs = [
+    'XAUUSD (Gold Spot)',
+    'BTC (Bitcoin 24/7)',
+    'ETH (Ethereum 24/7)',
+    'EURUSD',
+    'GBPUSD',
+    'USDJPY',
+    'GBPJPY',
+    'EURJPY',
+    'AUDUSD',
+    'USDCAD',
+    'USOIL (WTI Crude)',
+    'UKOIL (Brent)',
+    'US30 (Dow Jones)',
+    'US500 (S&P)',
+    'US100 (Nasdaq)',
+  ];
 
   @override
   void initState() {
     super.initState();
-    _loadBalance();
+    _loadSaved();
   }
 
-  Future<void> _loadBalance() async {
+  Future<void> _loadSaved() async {
     final prefs = await SharedPreferences.getInstance();
     final saved = prefs.getDouble('saved_capital_balance');
     if (saved != null) {
@@ -31,23 +49,39 @@ class _CapitalCalculatorScreenState extends State<CapitalCalculatorScreen> {
     }
   }
 
-  Future<void> _saveBalance(double val) async {
+  Future<void> _updateBalance(String v) async {
+    final parsed = double.tryParse(v) ?? 10.0;
+    setState(() => _accountBalance = parsed);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble('saved_capital_balance', val);
+    await prefs.setDouble('saved_capital_balance', parsed);
   }
 
   @override
   Widget build(BuildContext context) {
-    final riskAmount = _accountBalance * (_riskPercent / 100);
-    final targetReward = riskAmount * 2.5; // 1:2.5 institutional target
+    // 1. Dynamic Lot Sizing & Money Management Calculation
+    double recommendedLot = 0.01;
+    double pipValuePerLot = 10.0; // Standard Forex 1 pip with 1 lot = $10
 
-    // Recommended Lot Size calculation based on asset volatility
-    double recLot = 0.01;
     if (_selectedPair.contains('XAU')) {
-      recLot = ((_accountBalance / 500) * 0.02).clamp(0.01, 10.0);
+      // Gold: $100 -> 0.01 lot, $500 -> 0.02-0.03 lot
+      recommendedLot = ((_accountBalance / 100) * 0.01).clamp(0.01, 20.0);
+      pipValuePerLot = 10.0; // $1 move in gold = 10 pips
+    } else if (_selectedPair.contains('BTC') || _selectedPair.contains('ETH')) {
+      recommendedLot = ((_accountBalance / 100) * 0.01).clamp(0.01, 10.0);
+      pipValuePerLot = 1.0;
+    } else if (_selectedPair.contains('JPY')) {
+      recommendedLot = ((_accountBalance / 100) * 0.01).clamp(0.01, 20.0);
+      pipValuePerLot = 7.0;
     } else {
-      recLot = ((_accountBalance / 500) * 0.05).clamp(0.01, 10.0);
+      // Standard Forex Majors
+      recommendedLot = ((_accountBalance / 100) * 0.01).clamp(0.01, 30.0);
+      pipValuePerLot = 10.0;
     }
+
+    // Profit & Loss calculation per 10 pips and average 20 pips swing
+    final profitPer10Pips = recommendedLot * pipValuePerLot * 10;
+    final lossPer10Pips = profitPer10Pips;
+    final swingTarget25Pips = profitPer10Pips * 2.5;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E17),
@@ -58,7 +92,7 @@ class _CapitalCalculatorScreenState extends State<CapitalCalculatorScreen> {
           children: [
             Icon(Icons.calculate, color: Color(0xFFFFB800), size: 22),
             SizedBox(width: 8),
-            Text('Capital & Lot Size Calculator', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+            Text('ক্যাপিটাল ও লট সাইজ হিসাব', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
           ],
         ),
       ),
@@ -67,7 +101,7 @@ class _CapitalCalculatorScreenState extends State<CapitalCalculatorScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Balance Input Card
+            // Capital Balance Input Box
             Container(
               padding: const EdgeInsets.all(18),
               decoration: BoxDecoration(
@@ -78,48 +112,37 @@ class _CapitalCalculatorScreenState extends State<CapitalCalculatorScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Enter Your Trading Capital (\$ USD):', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                  const SizedBox(height: 10),
+                  const Text(
+                    'আপনার ট্রেডিং ব্যালেন্স বসান (\$ USD):',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'আপনি যত ডলার দিয়ে ট্রেড করতে চান (যেমন: \$১০, \$৫০, \$১০০ বা \$১০০০)',
+                    style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                  ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: _balanceController,
                     keyboardType: TextInputType.number,
-                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900),
                     decoration: InputDecoration(
                       prefixIcon: const Icon(Icons.attach_money, color: Color(0xFFFFB800)),
+                      suffixText: 'USD',
+                      suffixStyle: const TextStyle(color: Color(0xFFFFB800), fontWeight: FontWeight.bold),
                       filled: true,
                       fillColor: const Color(0xFF0A0E17),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      suffixText: 'USD',
                     ),
-                    onChanged: (v) {
-                      final parsed = double.tryParse(v) ?? 100.0;
-                      setState(() => _accountBalance = parsed);
-                      _saveBalance(parsed);
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Risk Per Trade: ${_riskPercent.toStringAsFixed(1)}%', style: const TextStyle(color: Color(0xFFFFB800), fontWeight: FontWeight.bold, fontSize: 13)),
-                      Text('Max Risk: \$${riskAmount.toStringAsFixed(2)}', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13)),
-                    ],
-                  ),
-                  Slider(
-                    value: _riskPercent,
-                    min: 0.5,
-                    max: 5.0,
-                    divisions: 9,
-                    activeColor: const Color(0xFFFFB800),
-                    onChanged: (v) => setState(() => _riskPercent = v),
+                    onChanged: _updateBalance,
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 20),
-            // Select Pair for exact lot sizing
-            const Text('SELECT TARGET PAIR', style: TextStyle(color: Color(0xFFFFB800), fontSize: 11, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 18),
+            // Select Any Pair Dropdown (All Pairs Included)
+            const Text('ট্রেডিং পেয়ার সিলেক্ট করুন:', style: TextStyle(color: Color(0xFFFFB800), fontSize: 12, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -133,15 +156,17 @@ class _CapitalCalculatorScreenState extends State<CapitalCalculatorScreen> {
                   value: _selectedPair,
                   isExpanded: true,
                   dropdownColor: const Color(0xFF131B2A),
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  items: ['XAUUSD (Gold)', 'EURUSD', 'GBPUSD', 'USDJPY', 'USOIL (Crude)'].map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
-                  onChanged: (v) { if (v != null) setState(() => _selectedPair = v); },
+                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                  items: _allPairs.map((p) => DropdownMenuItem(value: p, child: Text(p))).toList(),
+                  onChanged: (v) {
+                    if (v != null) setState(() => _selectedPair = v);
+                  },
                 ),
               ),
             ),
 
             const SizedBox(height: 20),
-            // Calculation Output Sheet
+            // Dynamic Output Calculation Card
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -152,19 +177,29 @@ class _CapitalCalculatorScreenState extends State<CapitalCalculatorScreen> {
                 border: Border.all(color: const Color(0xFFFFB800).withOpacity(0.4)),
               ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('AI CAPITAL SIZING PLAN', style: TextStyle(color: Color(0xFFFFB800), fontSize: 12, fontWeight: FontWeight.w900)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('AI লট সাইজ ও প্রফিট/লস হিসাব', style: TextStyle(color: Color(0xFFFFB800), fontSize: 12, fontWeight: FontWeight.w900)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.2), borderRadius: BorderRadius.circular(6)),
+                        child: const Text('নিরাপদ রিস্ক', style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 16),
-                  _buildPlanRow('Recommended Lot Size:', '${recLot.toStringAsFixed(2)} Lots', Colors.greenAccent),
-                  _buildPlanRow('Max Risk Dollar (Stop Loss):', '-\$${riskAmount.toStringAsFixed(2)}', Colors.redAccent),
-                  _buildPlanRow('Expected Target (TP1 / TP2):', '+\$${targetReward.toStringAsFixed(2)}', Colors.greenAccent),
-                  _buildPlanRow('Minimum RRR Setup:', '1 : 2.5', Colors.white),
-                  _buildPlanRow('Holding Period:', '2 to 3 Hours (Swift Swing)', Colors.white70),
+                  _buildCalcRow('নিরাপদ লট সাইজ (Recommended):', '${recommendedLot.toStringAsFixed(2)} Lot', const Color(0xFFFFB800)),
+                  _buildCalcRow('প্রতি ১০ পিপসে সম্ভাব্য লাভ (TP):', '+\$${profitPer10Pips.toStringAsFixed(2)}', Colors.greenAccent),
+                  _buildCalcRow('প্রতি ১০ পিপসে সম্ভাব্য ক্ষতি (SL):', '-\$${lossPer10Pips.toStringAsFixed(2)}', Colors.redAccent),
+                  _buildCalcRow('পূর্ণ সুইং টার্গেট (২৫ পিপস):', '+\$${swingTarget25Pips.toStringAsFixed(2)}', Colors.greenAccent),
                   const Divider(color: Color(0xFF2E384D)),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
-                    'Zavro AI Auto-Rule: If balance is \$${_accountBalance.toStringAsFixed(0)}, taking a ${recLot.toStringAsFixed(2)} lot trade ensures your account can withstand 20 consecutive losses without blowing up!',
-                    style: TextStyle(color: Colors.grey[300], fontSize: 11, fontStyle: FontStyle.italic),
+                    'সহজ নিয়ম: আপনার \$${_accountBalance.toStringAsFixed(0)} ব্যালেন্সের জন্য এই পেয়ারে ${recommendedLot.toStringAsFixed(2)} লটের বেশি নেওয়া উচিত নয়। এর ফলে মার্কেট যদি সাময়িকভাবে ১০ পিপস বিপরীতেও যায়, আপনার অ্যাকাউন্টে মাত্র \$${lossPer10Pips.toStringAsFixed(2)} এর মতো সামান্য ঝুঁকি থাকবে, যা ব্যালেন্স সুরক্ষিত রাখবে!',
+                    style: TextStyle(color: Colors.grey[300], fontSize: 11, height: 1.4),
                   ),
                 ],
               ),
@@ -175,14 +210,14 @@ class _CapitalCalculatorScreenState extends State<CapitalCalculatorScreen> {
     );
   }
 
-  Widget _buildPlanRow(String title, String val, Color valColor) {
+  Widget _buildCalcRow(String label, String value, Color color) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(title, style: TextStyle(color: Colors.grey[400], fontSize: 12)),
-          Text(val, style: TextStyle(color: valColor, fontWeight: FontWeight.bold, fontSize: 13)),
+          Text(label, style: TextStyle(color: Colors.grey[400], fontSize: 12)),
+          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 14)),
         ],
       ),
     );
