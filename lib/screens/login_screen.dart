@@ -12,26 +12,53 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _nameController = TextEditingController(text: 'Afzal Shuvo');
   final _emailController = TextEditingController(text: 'afzalxyzshuvo@gmail.com');
+  final _phoneController = TextEditingController(text: '1700000000');
+  final _passwordController = TextEditingController(text: 'zavro@2026');
+  final _otpController = TextEditingController(text: '8492');
+
+  bool _isVerifying = false;
+  bool _otpSent = false;
   bool _isLoading = false;
 
-  Future<void> _handleLogin() async {
-    if (_nameController.text.trim().isEmpty || _emailController.text.trim().isEmpty) {
+  Future<void> _handleSendOtp() async {
+    if (_nameController.text.trim().isEmpty ||
+        _emailController.text.trim().isEmpty ||
+        _phoneController.text.trim().isEmpty ||
+        _passwordController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter name and Gmail address')),
+        const SnackBar(content: Text('Please fill in all account fields')),
       );
       return;
     }
 
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 900)); // Smooth simulated sign-in
+    await Future.delayed(const Duration(milliseconds: 700));
+
+    setState(() {
+      _isLoading = false;
+      _otpSent = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Verification Code sent to +880 phone & Gmail! (Code: 8492)')),
+    );
+  }
+
+  Future<void> _handleConfirmLogin() async {
+    setState(() => _isVerifying = true);
+    await Future.delayed(const Duration(milliseconds: 800));
 
     final prefs = await SharedPreferences.getInstance();
+    final uid = 'ZVR-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
     await prefs.setString('user_name', _nameController.text.trim());
     await prefs.setString('user_email', _emailController.text.trim());
+    await prefs.setString('user_phone', '+880${_phoneController.text.trim()}');
+    await prefs.setString('user_password', _passwordController.text.trim());
+    await prefs.setString('user_uid', uid);
     await prefs.setBool('is_logged_in', true);
 
     if (mounted) {
-      setState(() => _isLoading = false);
+      setState(() => _isVerifying = false);
       widget.onLoginSuccess();
     }
   }
@@ -42,22 +69,22 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: const Color(0xFF0A0E17),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 30),
-              // App Logo with Neon Glow
+              const SizedBox(height: 10),
+              // ZAVRO Logo
               Container(
-                width: 110,
-                height: 110,
+                width: 100,
+                height: 100,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFFFFB800).withOpacity(0.35),
+                      color: const Color(0xFFFFB800).withOpacity(0.4),
                       blurRadius: 30,
-                      spreadRadius: 5,
+                      spreadRadius: 4,
                     ),
                   ],
                 ),
@@ -67,36 +94,32 @@ class _LoginScreenState extends State<LoginScreen> {
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => const Icon(
                       Icons.auto_graph,
-                      size: 60,
+                      size: 50,
                       color: Color(0xFFFFB800),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               const Text(
-                'APEX AI TRADING',
+                'ZAVRO AI',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 26,
+                  fontSize: 28,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: 2.0,
+                  letterSpacing: 3.0,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
               Text(
-                'Institutional ICT & SMC Intelligence Engine',
-                style: TextStyle(
-                  color: Colors.grey[400],
-                  fontSize: 13,
-                  letterSpacing: 0.5,
-                ),
+                'Institutional Trading Intelligence Platform',
+                style: TextStyle(color: Colors.grey[400], fontSize: 12),
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 32),
 
-              // Glassmorphic Input Card
+              // Form Container
               Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
                   color: const Color(0xFF131B2A),
                   borderRadius: BorderRadius.circular(20),
@@ -105,121 +128,118 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Welcome Trader',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
                     Text(
-                      'Sign in with your Gmail to sync signals & analytics',
+                      _otpSent ? 'Enter Verification Code' : 'Create Trader Account',
+                      style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _otpSent
+                          ? 'Enter the 4-digit code sent to your phone and email'
+                          : 'Sign up with Gmail & Bangladeshi (+880) Phone',
                       style: TextStyle(color: Colors.grey[400], fontSize: 12),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
 
-                    // Name Input
-                    TextField(
-                      controller: _nameController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: 'Full Name',
-                        labelStyle: TextStyle(color: Colors.grey[400]),
-                        prefixIcon: const Icon(Icons.person_outline, color: Color(0xFFFFB800)),
-                        filled: true,
-                        fillColor: const Color(0xFF0A0E17),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF1E293B)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFFFB800)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Gmail Input
-                    TextField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        labelText: 'Gmail Address',
-                        labelStyle: TextStyle(color: Colors.grey[400]),
-                        prefixIcon: const Icon(Icons.email_outlined, color: Color(0xFFFFB800)),
-                        filled: true,
-                        fillColor: const Color(0xFF0A0E17),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF1E293B)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFFFB800)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-
-                    // Sign In Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _handleLogin,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFB800),
-                          foregroundColor: Colors.black,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                    if (!_otpSent) ...[
+                      // Name
+                      _buildTextField(_nameController, 'Full Name', Icons.person_outline),
+                      const SizedBox(height: 12),
+                      // Gmail
+                      _buildTextField(_emailController, 'Gmail Address', Icons.email_outlined, keyboard: TextInputType.emailAddress),
+                      const SizedBox(height: 12),
+                      // Bangladesh Phone Number with prefix
+                      TextField(
+                        controller: _phoneController,
+                        keyboardType: TextInputType.phone,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          labelText: 'Mobile Number',
+                          labelStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
+                          prefixIcon: const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                            child: Text(
+                              '+880 ',
+                              style: TextStyle(color: Color(0xFFFFB800), fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
                           ),
-                          elevation: 6,
-                          shadowColor: const Color(0xFFFFB800).withOpacity(0.5),
+                          filled: true,
+                          fillColor: const Color(0xFF0A0E17),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.5,
-                                  color: Colors.black,
-                                ),
-                              )
-                            : const Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.login, size: 20),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'CONTINUE TO TRADING DESK',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                      letterSpacing: 0.8,
-                                    ),
-                                  ),
-                                ],
-                              ),
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                      // Password
+                      _buildTextField(_passwordController, 'Password', Icons.lock_outline, obscure: true),
+                      const SizedBox(height: 24),
+                      // Send OTP Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _isLoading ? null : _handleSendOtp,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFFB800),
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: _isLoading
+                              ? const CircularProgressIndicator(color: Colors.black, strokeWidth: 2)
+                              : const Text('VERIFY & CONTINUE', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                        ),
+                      ),
+                    ] else ...[
+                      // OTP Verification Box
+                      TextField(
+                        controller: _otpController,
+                        keyboardType: TextInputType.number,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Color(0xFFFFB800), fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 8),
+                        decoration: InputDecoration(
+                          labelText: 'Verification Code',
+                          labelStyle: TextStyle(color: Colors.grey[400], fontSize: 12),
+                          filled: true,
+                          fillColor: const Color(0xFF0A0E17),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: ElevatedButton(
+                          onPressed: _isVerifying ? null : _handleConfirmLogin,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFFB800),
+                            foregroundColor: Colors.black,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: _isVerifying
+                              ? const CircularProgressIndicator(color: Colors.black, strokeWidth: 2)
+                              : const Text('LAUNCH ZAVRO DESK', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Center(
+                        child: TextButton(
+                          onPressed: () => setState(() => _otpSent = false),
+                          child: const Text('Edit Details', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
 
-              const SizedBox(height: 36),
-              // Institutional Trust Badges
+              const SizedBox(height: 24),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildBadge(Icons.verified_user_outlined, 'SMC / ICT 2026'),
-                  const SizedBox(width: 16),
-                  _buildBadge(Icons.bolt, '85%+ Win Rate'),
-                  const SizedBox(width: 16),
-                  _buildBadge(Icons.lock_outline, 'Encrypted'),
+                  _buildBadge(Icons.security, 'Encrypted Auth'),
+                  const SizedBox(width: 14),
+                  _buildBadge(Icons.bolt, '3s Instant Feed'),
+                  const SizedBox(width: 14),
+                  _buildBadge(Icons.flag, 'BD Session Sync'),
                 ],
               ),
             ],
@@ -229,15 +249,29 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Widget _buildTextField(TextEditingController ctrl, String label, IconData icon, {bool obscure = false, TextInputType keyboard = TextInputType.text}) {
+    return TextField(
+      controller: ctrl,
+      obscureText: obscure,
+      keyboardType: keyboard,
+      style: const TextStyle(color: Colors.white),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
+        prefixIcon: Icon(icon, color: const Color(0xFFFFB800), size: 20),
+        filled: true,
+        fillColor: const Color(0xFF0A0E17),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
   Widget _buildBadge(IconData icon, String text) {
     return Row(
       children: [
         Icon(icon, size: 14, color: const Color(0xFFFFB800)),
         const SizedBox(width: 4),
-        Text(
-          text,
-          style: TextStyle(color: Colors.grey[400], fontSize: 11),
-        ),
+        Text(text, style: TextStyle(color: Colors.grey[400], fontSize: 11)),
       ],
     );
   }
