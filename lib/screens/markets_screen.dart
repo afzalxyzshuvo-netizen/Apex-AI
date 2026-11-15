@@ -21,13 +21,13 @@ class _MarketsScreenState extends State<MarketsScreen> {
   Timer? _refreshTimer;
 
   final List<Map<String, dynamic>> _allSymbols = [
-    // 1. Direct Crypto 24/7 (BTC, ETH, SOL)
-    {'sym': 'BTC', 'name': 'Bitcoin (Spot 24/7)', 'cat': 'Crypto', 'forex': false},
-    {'sym': 'ETH', 'name': 'Ethereum (Spot 24/7)', 'cat': 'Crypto', 'forex': false},
-    {'sym': 'SOL', 'name': 'Solana (Spot 24/7)', 'cat': 'Crypto', 'forex': false},
+    // 1. Direct Crypto 24/7 (BTC, ETH, SOL) - Top Priority
+    {'sym': 'BTC', 'name': 'Bitcoin (Spot 24/7 Live)', 'cat': 'Crypto', 'forex': false},
+    {'sym': 'ETH', 'name': 'Ethereum (Spot 24/7 Live)', 'cat': 'Crypto', 'forex': false},
+    {'sym': 'SOL', 'name': 'Solana (Spot 24/7 Live)', 'cat': 'Crypto', 'forex': false},
 
-    // 2. Commodities & Spot Gold
-    {'sym': 'XAUUSD', 'name': 'Spot Gold (PAXG 1:1)', 'cat': 'Commodity', 'forex': false},
+    // 2. Commodities & Spot Gold 24/7
+    {'sym': 'XAUUSD', 'name': 'Spot Gold (PAXG 1:1 Live)', 'cat': 'Commodity', 'forex': false},
     {'sym': 'USOIL', 'name': 'Crude Oil (WTI)', 'cat': 'Commodity', 'forex': true},
     {'sym': 'UKOIL', 'name': 'Brent Crude Oil', 'cat': 'Commodity', 'forex': true},
     {'sym': 'NGUSD', 'name': 'Natural Gas (NG)', 'cat': 'Commodity', 'forex': true},
@@ -51,8 +51,8 @@ class _MarketsScreenState extends State<MarketsScreen> {
   void initState() {
     super.initState();
     _fetchMarketOverview();
-    // 3-second rapid live tick for Crypto & Gold
-    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) => _fastPriceSync());
+    // 2-second rapid live tick for Crypto & Gold
+    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) => _fastPriceSync());
   }
 
   @override
@@ -79,7 +79,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
       final name = s['name'] as String;
       final cat = s['cat'] as String;
       final isForex = s['forex'] as bool;
-      final isOpen = isForex ? isForexOpen : true; // Crypto and Spot Gold are ALWAYS open
+      final isOpen = isForex ? isForexOpen : true;
 
       try {
         final candles = await _dataService.fetchLiveCandles(sym, timeframe: '15m');
@@ -100,7 +100,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
             high24h: high,
             low24h: low,
             isMarketOpen: isOpen,
-            source: cat == 'Crypto' || sym == 'XAUUSD' ? 'Binance 24/7 Direct' : 'Interbank Feed',
+            source: cat == 'Crypto' || sym == 'XAUUSD' ? 'Binance 24/7' : 'Interbank Feed',
           ));
         }
       } catch (_) {}
@@ -118,25 +118,22 @@ class _MarketsScreenState extends State<MarketsScreen> {
     final isForexOpen = !_isForexWeekend();
     for (int i = 0; i < _pairs.length; i++) {
       final pair = _pairs[i];
-      if (pair.isMarketOpen) {
+      if (pair.category == 'Crypto' || pair.symbol == 'XAUUSD' || isForexOpen) {
         try {
-          final candles = await _dataService.fetchLiveCandles(pair.symbol, timeframe: '15m');
-          if (candles.isNotEmpty && mounted) {
-            _cachedCandles[pair.symbol] = candles;
-            final current = candles.last.close;
-            final first = candles.first.open;
-            final changePct = first > 0 ? ((current - first) / first) * 100 : 0.0;
+          final instant = await _dataService.fetchInstantPrice(pair.symbol);
+          if (instant != null && mounted) {
             setState(() {
+              final oldP = _pairs[i];
               _pairs[i] = MarketPairInfo(
-                symbol: pair.symbol,
-                displayName: pair.displayName,
-                category: pair.category,
-                currentPrice: current,
-                change24h: changePct,
-                high24h: candles.map((c) => c.high).reduce((a, b) => a > b ? a : b),
-                low24h: candles.map((c) => c.low).reduce((a, b) => a < b ? a : b),
-                isMarketOpen: isForexOpen || pair.category == 'Crypto' || pair.symbol == 'XAUUSD',
-                source: pair.source,
+                symbol: oldP.symbol,
+                displayName: oldP.displayName,
+                category: oldP.category,
+                currentPrice: instant,
+                change24h: oldP.change24h,
+                high24h: instant > oldP.high24h ? instant : oldP.high24h,
+                low24h: instant < oldP.low24h ? instant : oldP.low24h,
+                isMarketOpen: true,
+                source: oldP.source,
               );
             });
           }
@@ -174,7 +171,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
             child: const Row(
               children: [
                 Icon(Icons.bolt, color: Colors.greenAccent, size: 14),
-                Text(' 3s Stream', style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                Text(' LIVE 2s TICK', style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
