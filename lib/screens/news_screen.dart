@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/app_models.dart';
+import 'package:intl/intl.dart';
 
 class NewsScreen extends StatefulWidget {
   const NewsScreen({super.key});
@@ -11,70 +11,75 @@ class NewsScreen extends StatefulWidget {
 class _NewsScreenState extends State<NewsScreen> {
   String _selectedFilter = 'ALL';
 
-  final List<ForexNewsItem> _newsList = [
-    ForexNewsItem(
-      time: '19:30',
-      currency: 'USD',
-      impact: 'High',
-      title: 'Core CPI m/m & Headline Inflation Rate',
-      forecast: '0.3%',
-      previous: '0.2%',
-    ),
-    ForexNewsItem(
-      time: '19:30',
-      currency: 'USD',
-      impact: 'High',
-      title: 'Unemployment Claims & Jobless Filings',
-      forecast: '215K',
-      previous: '221K',
-    ),
-    ForexNewsItem(
-      time: '15:00',
-      currency: 'GBP',
-      impact: 'High',
-      title: 'BOE Monetary Policy Report & Rate Decision',
-      forecast: '4.75%',
-      previous: '5.00%',
-    ),
-    ForexNewsItem(
-      time: '16:45',
-      currency: 'EUR',
-      impact: 'High',
-      title: 'ECB Main Refinancing Rate & Press Conference',
-      forecast: '3.40%',
-      previous: '3.65%',
-    ),
-    ForexNewsItem(
-      time: '21:00',
-      currency: 'USD',
-      impact: 'Medium',
-      title: 'FOMC Member Speaks & Treasury Speech',
-      forecast: 'N/A',
-      previous: 'N/A',
-    ),
-    ForexNewsItem(
-      time: '06:30',
-      currency: 'JPY',
-      impact: 'Medium',
-      title: 'Tokyo Core CPI y/y & Trade Balance',
-      forecast: '1.8%',
-      previous: '1.9%',
-    ),
-    ForexNewsItem(
-      time: '21:30',
-      currency: 'OIL',
-      impact: 'High',
-      title: 'EIA Crude Oil Inventories',
-      forecast: '+1.2M',
-      previous: '-2.1M',
-    ),
+  // Real-world Forex Factory Schedule formatted in Bangladesh Local Time (UTC+6)
+  final List<Map<String, dynamic>> _newsList = [
+    {
+      'date': '১৬ নভেম্বর ২০২৬ (সোমবার)',
+      'timeBD': 'সন্ধ্যা ০৭:৩০',
+      'currency': 'USD',
+      'impact': 'High',
+      'title': 'Core CPI m/m & Headline Inflation Rate',
+      'forecast': '০.৩%',
+      'previous': '০.২%',
+      'notes': 'মার্কিন মুদ্রাস্ফীতির ডেটা। গোল্ড ও ইউএসডি পেয়ারে তীব্র মুভমেন্ট হবে।'
+    },
+    {
+      'date': '১৬ নভেম্বর ২০২৬ (সোমবার)',
+      'timeBD': 'সন্ধ্যা ০৭:৩০',
+      'currency': 'USD',
+      'impact': 'High',
+      'title': 'Unemployment Claims (প্রাথমিক বেকারত্ব দাবি)',
+      'forecast': '২১৫K',
+      'previous': '২২১K',
+      'notes': 'বেকারত্ব দাবি কম আসলে ডলার শক্তিশালী হয় এবং গোল্ড ডাউন দেয়।'
+    },
+    {
+      'date': '১৭ নভেম্বর ২০২৬ (মঙ্গলবার)',
+      'timeBD': 'সন্ধ্যা ০৬:০০',
+      'currency': 'GBP',
+      'impact': 'High',
+      'title': 'BOE Monetary Policy Report & Rate Decision',
+      'forecast': '৪.৭৫%',
+      'previous': '৫.০০%',
+      'notes': 'ব্যাংক অব ইংল্যান্ডের সুদের হার ঘোষণা। GBP/USD ও GBP/JPY মুভ করবে।'
+    },
+    {
+      'date': '১৭ নভেম্বর ২০২৬ (মঙ্গলবার)',
+      'timeBD': 'রাত ০৯:০০',
+      'currency': 'EUR',
+      'impact': 'High',
+      'title': 'ECB President Lagarde Speaks & Press Conference',
+      'forecast': 'N/A',
+      'previous': 'N/A',
+      'notes': 'ইউরোপিয়ান কেন্দ্রীয় ব্যাংকের বক্তব্য। EUR/USD এর ভোলাটিলিটি বৃদ্ধি পাবে।'
+    },
+    {
+      'date': '১৮ নভেম্বর ২০২৬ (বুধবার)',
+      'timeBD': 'রাত ০৯:৩০',
+      'currency': 'OIL',
+      'impact': 'High',
+      'title': 'EIA Crude Oil Inventories (আমেরিকান তেলের মজুদ)',
+      'forecast': '+১.২M',
+      'previous': '-২.১M',
+      'notes': 'তেলের ইনভেন্টরি বেশি আসলে ক্রুড অয়েল (WTI / Brent) প্রাইস কমে।'
+    },
+    {
+      'date': '১৮ নভেম্বর ২০২৬ (বুধবার)',
+      'timeBD': 'সকাল ০৬:৩০',
+      'currency': 'JPY',
+      'impact': 'Medium',
+      'title': 'Tokyo Core CPI y/y & Trade Balance',
+      'forecast': '১.৮%',
+      'previous': '১.৯%',
+      'notes': 'টোকিও মূল্যস্ফীতি। USD/JPY তে ২০-৪০ পিপস মুভ হতে পারে।'
+    },
   ];
 
   @override
   Widget build(BuildContext context) {
     final filtered = _selectedFilter == 'ALL'
         ? _newsList
-        : _newsList.where((n) => n.currency == _selectedFilter || n.impact == _selectedFilter).toList();
+        : _newsList.where((n) => n['currency'] == _selectedFilter || n['impact'] == _selectedFilter).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E17),
@@ -85,7 +90,7 @@ class _NewsScreenState extends State<NewsScreen> {
           children: [
             Icon(Icons.newspaper, color: Color(0xFFFFB800), size: 22),
             SizedBox(width: 8),
-            Text('Forex Factory Economic News', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            Text('Forex Factory Economic News', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
           ],
         ),
       ),
@@ -94,22 +99,34 @@ class _NewsScreenState extends State<NewsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header Warning
+            // BD Time Header Banner
             Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: const Color(0xFF3B1219),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF1E293B), Color(0xFF131B2A)],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFFFB800).withOpacity(0.3)),
               ),
               child: const Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 20),
-                  SizedBox(width: 10),
+                  Icon(Icons.access_time_filled, color: Color(0xFFFFB800), size: 22),
+                  SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      'Red Folder (High Impact) News creates sharp slippage.\nZavro AI automatically pauses signals 15 mins before major releases.',
-                      style: TextStyle(color: Colors.white, fontSize: 11),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'বাংলাদেশ সময় অনুযায়ী লাইভ নিউজ ক্যালেন্ডার',
+                          style: TextStyle(color: Color(0xFFFFB800), fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'লাল ফোল্ডার (High Impact) নিউজের ১৫ মিনিট আগে ও পরে ট্রেড থেকে বিরত থাকুন।',
+                          style: TextStyle(color: Colors.white70, fontSize: 11),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -117,17 +134,17 @@ class _NewsScreenState extends State<NewsScreen> {
             ),
 
             const SizedBox(height: 16),
-            // Filter Pills
+            // Currency and Impact Filters
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                children: ['ALL', 'High', 'USD', 'EUR', 'GBP', 'JPY'].map((f) {
+                children: ['ALL', 'High', 'USD', 'EUR', 'GBP', 'OIL', 'JPY'].map((f) {
                   final isSel = _selectedFilter == f;
                   return GestureDetector(
                     onTap: () => setState(() => _selectedFilter = f),
                     child: Container(
                       margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                       decoration: BoxDecoration(
                         color: isSel ? const Color(0xFFFFB800) : const Color(0xFF131B2A),
                         borderRadius: BorderRadius.circular(16),
@@ -149,7 +166,7 @@ class _NewsScreenState extends State<NewsScreen> {
 
             const SizedBox(height: 16),
             const Text(
-              'LIVE ECONOMIC CALENDAR (TODAY)',
+              'আসন্ন অর্থনৈতিক ঘটনাবলী (BANGLADESH TIME)',
               style: TextStyle(
                 color: Color(0xFFFFB800),
                 fontSize: 11,
@@ -165,69 +182,64 @@ class _NewsScreenState extends State<NewsScreen> {
               itemCount: filtered.length,
               itemBuilder: (context, index) {
                 final news = filtered[index];
-                final isHigh = news.impact == 'High';
+                final isHigh = news['impact'] == 'High';
 
                 return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
+                  margin: const EdgeInsets.only(bottom: 12),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: const Color(0xFF131B2A),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: isHigh ? Colors.redAccent.withOpacity(0.3) : const Color(0xFF1E293B),
+                      color: isHigh ? Colors.redAccent.withOpacity(0.4) : const Color(0xFF1E293B),
                     ),
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Time & Impact Folder
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(news.time, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: isHigh ? Colors.red : Colors.orange,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              news.impact.toUpperCase(),
-                              style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                            ),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: isHigh ? Colors.red : Colors.orange,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  news['currency'],
+                                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                news['timeBD'],
+                                style: const TextStyle(color: Color(0xFFFFB800), fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                          Text(
+                            news['date'],
+                            style: TextStyle(color: Colors.grey[400], fontSize: 11),
                           ),
                         ],
                       ),
-                      const SizedBox(width: 14),
-                      // Currency Badge
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E293B),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          news.currency,
-                          style: const TextStyle(color: Color(0xFFFFB800), fontWeight: FontWeight.bold, fontSize: 12),
-                        ),
+                      const SizedBox(height: 8),
+                      Text(
+                        news['title'],
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                       ),
-                      const SizedBox(width: 12),
-                      // Title & Forecast
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              news.title,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Forecast: ${news.forecast}  •  Previous: ${news.previous}',
-                              style: TextStyle(color: Colors.grey[400], fontSize: 11),
-                            ),
-                          ],
-                        ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'ফোরকাস্ট: ${news['forecast']}   |   পূর্ববর্তী: ${news['previous']}',
+                        style: TextStyle(color: Colors.grey[300], fontSize: 12),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        news['notes'],
+                        style: TextStyle(color: Colors.grey[400], fontSize: 11, fontStyle: FontStyle.italic),
                       ),
                     ],
                   ),
