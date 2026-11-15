@@ -40,10 +40,19 @@ class _CandleChartScreenState extends State<CandleChartScreen> {
   List<double> _horizontalAlerts = [];
   List<Offset> _drawnLines = [];
 
+  // TradingView Interactive Pan & Pinch-to-Zoom Controller
+  final TransformationController _transformController = TransformationController();
+
   @override
   void initState() {
     super.initState();
     _candles = widget.initialCandles;
+  }
+
+  @override
+  void dispose() {
+    _transformController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchNewTimeframe(String tf) async {
@@ -63,14 +72,13 @@ class _CandleChartScreenState extends State<CandleChartScreen> {
   }
 
   void _handleTapDown(TapDownDetails details, Size chartSize) {
-    if (_candles.isEmpty) return;
+    if (_candles.isEmpty || _activeTool == 'None') return;
 
     double maxP = _candles.map((c) => c.high).reduce((a, b) => a > b ? a : b);
     double minP = _candles.map((c) => c.low).reduce((a, b) => a < b ? a : b);
     if (maxP == minP) { maxP += 1.0; minP -= 1.0; }
     final range = maxP - minP;
 
-    // Convert tap Y to Price level
     final tappedPrice = maxP - ((details.localPosition.dy / chartSize.height) * range);
 
     if (_activeTool == 'PriceAlert') {
@@ -79,6 +87,7 @@ class _CandleChartScreenState extends State<CandleChartScreen> {
         SnackBar(
           content: Text('🔔 Price Alert set at: ${tappedPrice.toStringAsFixed(2)}'),
           backgroundColor: const Color(0xFFFFB800),
+          duration: const Duration(seconds: 2),
         ),
       );
     } else if (_activeTool == 'HorizontalLine') {
@@ -177,8 +186,8 @@ class _CandleChartScreenState extends State<CandleChartScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  widget.symbol.contains('JPY') || widget.symbol.contains('XAU')
-                      ? lastPrice.toStringAsFixed(2)
+                  widget.symbol.contains('JPY') || widget.symbol.contains('XAU') || widget.symbol.contains('BTC')
+                      ? '\$${lastPrice.toStringAsFixed(2)}'
                       : lastPrice.toStringAsFixed(5),
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
                 ),
@@ -197,7 +206,7 @@ class _CandleChartScreenState extends State<CandleChartScreen> {
       ),
       body: Column(
         children: [
-          // 1. Timeframe Switcher Bar (1m, 5m, 10m, 15m, 30m, 40m, 45m, 1h, 1d)
+          // 1. Timeframe Switcher
           Container(
             height: 44,
             color: const Color(0xFF131B2A),
@@ -242,7 +251,6 @@ class _CandleChartScreenState extends State<CandleChartScreen> {
             ),
             child: Row(
               children: [
-                // Indicators Button
                 ElevatedButton.icon(
                   onPressed: _showIndicatorsModal,
                   icon: const Icon(Icons.show_chart, size: 14, color: Colors.black),
@@ -255,12 +263,16 @@ class _CandleChartScreenState extends State<CandleChartScreen> {
                 ),
                 const SizedBox(width: 8),
 
-                // Tool Pills
                 _buildToolPill('Horizontal', Icons.horizontal_rule, 'HorizontalLine'),
                 _buildToolPill('Trendline', Icons.timeline, 'TrendLine'),
                 _buildToolPill('Alert 🔔', Icons.add_alert, 'PriceAlert'),
 
                 const Spacer(),
+                IconButton(
+                  tooltip: 'Reset Zoom & Position',
+                  icon: const Icon(Icons.center_focus_strong, color: Color(0xFFFFB800), size: 18),
+                  onPressed: () => _transformController.value = Matrix4.identity(),
+                ),
                 if (_activeTool != 'None' || _horizontalAlerts.isNotEmpty)
                   GestureDetector(
                     onTap: () => setState(() {
@@ -274,7 +286,7 @@ class _CandleChartScreenState extends State<CandleChartScreen> {
             ),
           ),
 
-          // 3. TradingView Interactive Canvas
+          // 3. True Interactive TradingView Canvas with Zoom & Pan
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFB800)))
@@ -285,17 +297,25 @@ class _CandleChartScreenState extends State<CandleChartScreen> {
                         onTapDown: (details) => _handleTapDown(details, chartSize),
                         child: Container(
                           color: const Color(0xFF0A0E17),
-                          child: CustomPaint(
-                            size: Size.infinite,
-                            painter: AdvancedTradingViewPainter(
-                              candles: _candles,
-                              showEma20: _showEma20,
-                              showEma50: _showEma50,
-                              showBollinger: _showBollinger,
-                              showRsi: _showRsi,
-                              showCoppock: _showCoppock,
-                              alerts: _horizontalAlerts,
-                              drawnLines: _drawnLines,
+                          child: InteractiveViewer(
+                            transformationController: _transformController,
+                            boundaryMargin: const EdgeInsets.all(50),
+                            minScale: 0.5,
+                            maxScale: 6.0,
+                            panEnabled: _activeTool == 'None', // Free drag/move like TradingView
+                            scaleEnabled: true, // Pinch-to-zoom in & out
+                            child: CustomPaint(
+                              size: Size(constraints.maxWidth, constraints.maxHeight),
+                              painter: AdvancedTradingViewPainter(
+                                candles: _candles,
+                                showEma20: _showEma20,
+                                showEma50: _showEma50,
+                                showBollinger: _showBollinger,
+                                showRsi: _showRsi,
+                                showCoppock: _showCoppock,
+                                alerts: _horizontalAlerts,
+                                drawnLines: _drawnLines,
+                              ),
                             ),
                           ),
                         ),
@@ -313,8 +333,8 @@ class _CandleChartScreenState extends State<CandleChartScreen> {
               children: [
                 _buildStat('High', _candles.isNotEmpty ? _candles.map((c) => c.high).reduce((a, b) => a > b ? a : b).toStringAsFixed(2) : '0'),
                 _buildStat('Low', _candles.isNotEmpty ? _candles.map((c) => c.low).reduce((a, b) => a < b ? a : b).toStringAsFixed(2) : '0'),
-                _buildStat('Active Tool', _activeTool),
-                _buildStat('Feed', '3s WebSocket Stream'),
+                _buildStat('Gesture', 'Drag & Pinch Zoom Enabled'),
+                _buildStat('Stream', '3s Direct Binance Feed'),
               ],
             ),
           ),
@@ -358,7 +378,6 @@ class _CandleChartScreenState extends State<CandleChartScreen> {
   }
 }
 
-// Advanced TradingView Painter with BB, RSI, Coppock, and Drawing tools
 class AdvancedTradingViewPainter extends CustomPainter {
   final List<Candle> candles;
   final bool showEma20;
@@ -432,17 +451,15 @@ class AdvancedTradingViewPainter extends CustomPainter {
       final h = (botY - topY).abs().clamp(2.0, double.infinity);
       canvas.drawRect(Rect.fromCenter(center: Offset(x, topY + (h / 2)), width: candleW * 0.75, height: h), paint);
 
-      // Points for indicators
       if (i >= 5) {
         ema20.add(Offset(x, getY(c.close * 0.999)));
         ema50.add(Offset(x, getY(c.close * 0.997)));
-        // Bollinger Bands 20%
         bbUpper.add(Offset(x, getY(c.high * 1.002)));
         bbLower.add(Offset(x, getY(c.low * 0.998)));
       }
     }
 
-    // Draw Bollinger Bands (20% width)
+    // Bollinger Bands
     if (showBollinger && bbUpper.length > 1) {
       final bbPaint = Paint()..color = Colors.cyanAccent.withOpacity(0.5)..strokeWidth = 1.2..style = PaintingStyle.stroke;
       final pathU = Path()..moveTo(bbUpper.first.dx, bbUpper.first.dy);
@@ -454,7 +471,7 @@ class AdvancedTradingViewPainter extends CustomPainter {
       canvas.drawPath(pathL, bbPaint);
     }
 
-    // Draw EMA 20 & EMA 50
+    // EMA 20 & 50
     if (showEma20 && ema20.length > 1) {
       final p20 = Paint()..color = Colors.blueAccent..strokeWidth = 1.5..style = PaintingStyle.stroke;
       final path = Path()..moveTo(ema20.first.dx, ema20.first.dy);
@@ -468,7 +485,7 @@ class AdvancedTradingViewPainter extends CustomPainter {
       canvas.drawPath(path, p50);
     }
 
-    // Draw User Price Alerts (Horizontal Alert Lines)
+    // Alerts
     for (var alertPrice in alerts) {
       final alertY = getY(alertPrice);
       final alertPaint = Paint()..color = Colors.orangeAccent..strokeWidth = 1.5;
@@ -481,7 +498,7 @@ class AdvancedTradingViewPainter extends CustomPainter {
       tp.paint(canvas, Offset(8, alertY - 12));
     }
 
-    // Draw User Drawn Trendlines
+    // Trendlines
     if (drawnLines.length >= 2) {
       final linePaint = Paint()..color = Colors.yellowAccent..strokeWidth = 2.0;
       for (int i = 0; i < drawnLines.length - 1; i += 2) {
