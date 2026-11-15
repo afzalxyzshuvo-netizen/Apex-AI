@@ -3,14 +3,15 @@ import 'package:http/http.dart' as http;
 import '../models/trade_signal.dart';
 
 class MarketDataService {
-  // Mapping symbols to high-frequency live endpoints
+  // Mapping symbols to endpoints
   static const Map<String, String> symbolMap = {
-    // Crypto & 24/7 Spot
-    'XAUUSD': 'PAXGUSDT',
-    'BTCUSD': 'BTCUSDT',
-    'ETHUSD': 'ETHUSDT',
+    // Crypto 24/7 (Direct Binance Spot)
+    'BTC': 'BTCUSDT',
+    'ETH': 'ETHUSDT',
+    'SOL': 'SOLUSDT',
+    'XAUUSD': 'PAXGUSDT', // 24/7 Gold Spot 1:1
     
-    // Forex Majors & Crosses
+    // Forex
     'EURUSD': 'EURUSD=X',
     'GBPUSD': 'GBPUSD=X',
     'USDJPY': 'JPY=X',
@@ -19,23 +20,38 @@ class MarketDataService {
     'AUDUSD': 'AUDUSD=X',
     'USDCAD': 'CAD=X',
     
-    // Commodities
-    'USOIL': 'CL=F',    // WTI Crude Oil
-    'UKOIL': 'BZ=F',    // Brent Crude Oil
-    'NGUSD': 'NG=F',    // Natural Gas
-    
-    // Major World Indices
-    'US30': '^DJI',     // Dow Jones 30
-    'US500': '^GSPC',   // S&P 500
-    'US100': '^IXIC',   // Nasdaq 100
+    // Commodities & Indices
+    'USOIL': 'CL=F',
+    'UKOIL': 'BZ=F',
+    'NGUSD': 'NG=F',
+    'US30': '^DJI',
+    'US500': '^GSPC',
+    'US100': '^IXIC',
   };
 
-  // Ultra-fast fetcher (Binance 3-5 sec live response, Yahoo fast charts)
+  // Convert app timeframe strings to Binance interval format
+  static String toBinanceInterval(String tf) {
+    switch (tf) {
+      case '1m': return '1m';
+      case '5m': return '5m';
+      case '10m': return '15m'; // closest binance interval
+      case '15m': return '15m';
+      case '30m': return '30m';
+      case '40m': return '1h';
+      case '45m': return '1h';
+      case '1h': return '1h';
+      case '1d': return '1d';
+      default: return '15m';
+    }
+  }
+
   Future<List<Candle>> fetchLiveCandles(String symbol, {String timeframe = '15m'}) async {
     String resolved = symbolMap[symbol] ?? symbol;
+    if (symbol == 'BTC') resolved = 'BTCUSDT';
+    if (symbol == 'ETH') resolved = 'ETHUSDT';
 
     if (resolved.endsWith('USDT')) {
-      return await _fetchBinanceKlines(resolved, timeframe);
+      return await _fetchBinanceKlines(resolved, toBinanceInterval(timeframe));
     } else {
       return await _fetchYahooChart(resolved, timeframe);
     }
@@ -43,13 +59,13 @@ class MarketDataService {
 
   Future<List<Candle>> _fetchBinanceKlines(String ticker, String interval) async {
     try {
-      final url = Uri.parse('https://api.binance.com/api/v3/klines?symbol=$ticker&interval=$interval&limit=60');
+      final url = Uri.parse('https://api.binance.com/api/v3/klines?symbol=$ticker&interval=$interval&limit=100');
       final res = await http.get(url).timeout(const Duration(seconds: 4));
 
       if (res.statusCode == 200) {
         final List<dynamic> list = jsonDecode(res.body);
         return list.map((k) {
-          final dt = DateTime.fromMillisecondsSinceEpoch(k[0]);
+          final dt = DateTime.fromMillisecondsSinceEpoch(k[0] as int);
           return Candle(
             time: dt,
             open: double.tryParse(k[1].toString()) ?? 0.0,
@@ -68,8 +84,9 @@ class MarketDataService {
     try {
       String range = '1d';
       String yInterval = '15m';
-      if (interval == '1h') { range = '5d'; yInterval = '60m'; }
-      if (interval == '1d') { range = '1mo'; yInterval = '1d'; }
+      if (interval == '1m' || interval == '5m') { range = '1d'; yInterval = interval; }
+      else if (interval == '1h') { range = '5d'; yInterval = '60m'; }
+      else if (interval == '1d') { range = '1mo'; yInterval = '1d'; }
 
       final url = Uri.parse('https://query1.finance.yahoo.com/v8/finance/chart/$ticker?range=$range&interval=$yInterval');
       final res = await http.get(url, headers: {'User-Agent': 'Mozilla/5.0'}).timeout(const Duration(seconds: 4));
