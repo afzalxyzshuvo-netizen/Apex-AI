@@ -5,17 +5,17 @@ import 'screens/main_navigation_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const ApexAIApp());
+  runApp(const ZavroApp());
 }
 
-class ApexAIApp extends StatefulWidget {
-  const ApexAIApp({super.key});
+class ZavroApp extends StatefulWidget {
+  const ZavroApp({super.key});
 
   @override
-  State<ApexAIApp> createState() => _ApexAIAppState();
+  State<ZavroApp> createState() => _ZavroAppState();
 }
 
-class _ApexAIAppState extends State<ApexAIApp> {
+class _ZavroAppState extends State<ZavroApp> {
   bool _isLoggedIn = false;
   bool _isChecking = true;
 
@@ -44,7 +44,7 @@ class _ApexAIAppState extends State<ApexAIApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Apex AI',
+      title: 'ZAVRO AI',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
