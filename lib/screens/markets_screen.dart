@@ -21,17 +21,18 @@ class _MarketsScreenState extends State<MarketsScreen> {
   Timer? _refreshTimer;
 
   final List<Map<String, dynamic>> _allSymbols = [
-    // Commodities & Gold
+    // 1. Direct Crypto 24/7 (BTC, ETH, SOL)
+    {'sym': 'BTC', 'name': 'Bitcoin (Spot 24/7)', 'cat': 'Crypto', 'forex': false},
+    {'sym': 'ETH', 'name': 'Ethereum (Spot 24/7)', 'cat': 'Crypto', 'forex': false},
+    {'sym': 'SOL', 'name': 'Solana (Spot 24/7)', 'cat': 'Crypto', 'forex': false},
+
+    // 2. Commodities & Spot Gold
     {'sym': 'XAUUSD', 'name': 'Spot Gold (PAXG 1:1)', 'cat': 'Commodity', 'forex': false},
     {'sym': 'USOIL', 'name': 'Crude Oil (WTI)', 'cat': 'Commodity', 'forex': true},
     {'sym': 'UKOIL', 'name': 'Brent Crude Oil', 'cat': 'Commodity', 'forex': true},
     {'sym': 'NGUSD', 'name': 'Natural Gas (NG)', 'cat': 'Commodity', 'forex': true},
 
-    // Crypto
-    {'sym': 'BTCUSD', 'name': 'Bitcoin / USD', 'cat': 'Crypto', 'forex': false},
-    {'sym': 'ETHUSD', 'name': 'Ethereum / USD', 'cat': 'Crypto', 'forex': false},
-
-    // Forex Majors & Crosses
+    // 3. Forex Majors & Crosses
     {'sym': 'EURUSD', 'name': 'Euro / US Dollar', 'cat': 'Forex', 'forex': true},
     {'sym': 'GBPUSD', 'name': 'British Pound / US Dollar', 'cat': 'Forex', 'forex': true},
     {'sym': 'USDJPY', 'name': 'US Dollar / Japanese Yen', 'cat': 'Forex', 'forex': true},
@@ -40,7 +41,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
     {'sym': 'AUDUSD', 'name': 'Australian Dollar / USD', 'cat': 'Forex', 'forex': true},
     {'sym': 'USDCAD', 'name': 'US Dollar / Canadian Dollar', 'cat': 'Forex', 'forex': true},
 
-    // Indices
+    // 4. Global Indices
     {'sym': 'US30', 'name': 'Dow Jones Industrial 30', 'cat': 'Indices', 'forex': true},
     {'sym': 'US500', 'name': 'S&P 500 Index', 'cat': 'Indices', 'forex': true},
     {'sym': 'US100', 'name': 'Nasdaq 100 Index', 'cat': 'Indices', 'forex': true},
@@ -50,8 +51,8 @@ class _MarketsScreenState extends State<MarketsScreen> {
   void initState() {
     super.initState();
     _fetchMarketOverview();
-    // Fast 5-second ultra low latency live refresh
-    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _fastPriceSync());
+    // 3-second rapid live tick for Crypto & Gold
+    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) => _fastPriceSync());
   }
 
   @override
@@ -78,7 +79,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
       final name = s['name'] as String;
       final cat = s['cat'] as String;
       final isForex = s['forex'] as bool;
-      final isOpen = isForex ? isForexOpen : true;
+      final isOpen = isForex ? isForexOpen : true; // Crypto and Spot Gold are ALWAYS open
 
       try {
         final candles = await _dataService.fetchLiveCandles(sym, timeframe: '15m');
@@ -99,7 +100,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
             high24h: high,
             low24h: low,
             isMarketOpen: isOpen,
-            source: sym == 'XAUUSD' || sym.contains('BTC') ? 'Binance 24/7' : 'Interbank Live',
+            source: cat == 'Crypto' || sym == 'XAUUSD' ? 'Binance 24/7 Direct' : 'Interbank Feed',
           ));
         }
       } catch (_) {}
@@ -113,7 +114,6 @@ class _MarketsScreenState extends State<MarketsScreen> {
     }
   }
 
-  // Fast background price syncer without flickering
   Future<void> _fastPriceSync() async {
     final isForexOpen = !_isForexWeekend();
     for (int i = 0; i < _pairs.length; i++) {
@@ -147,7 +147,6 @@ class _MarketsScreenState extends State<MarketsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final forexClosed = _isForexWeekend();
     final filtered = _selectedCategory == 'ALL'
         ? _pairs
         : _pairs.where((p) => p.category.toUpperCase() == _selectedCategory).toList();
@@ -161,10 +160,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
           children: [
             Icon(Icons.candlestick_chart, color: Color(0xFFFFB800), size: 22),
             SizedBox(width: 8),
-            Text(
-              'Live Markets & Charts',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
+            Text('Live Markets & Charts', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           ],
         ),
         actions: [
@@ -178,7 +174,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
             child: const Row(
               children: [
                 Icon(Icons.bolt, color: Colors.greenAccent, size: 14),
-                Text('3s Feed', style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                Text(' 3s Stream', style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -193,35 +189,11 @@ class _MarketsScreenState extends State<MarketsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Weekend Alert
-              if (forexClosed)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF3B1219),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.info_outline, color: Colors.redAccent, size: 22),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Forex Market Closed (Weekend)\nGold Spot (PAXG 1:1) & Crypto operate 24/7.',
-                          style: TextStyle(color: Colors.white, fontSize: 12),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-              // Category Selector Tabs
+              // Category Tabs (CRYPTO first to easily check 24/7 running BTC)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
-                  children: ['ALL', 'FOREX', 'COMMODITY', 'CRYPTO', 'INDICES'].map((cat) {
+                  children: ['ALL', 'CRYPTO', 'COMMODITY', 'FOREX', 'INDICES'].map((cat) {
                     final isSel = _selectedCategory == cat;
                     return GestureDetector(
                       onTap: () => setState(() => _selectedCategory = cat),
@@ -249,7 +221,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
 
               const SizedBox(height: 6),
               const Text(
-                'TAP ANY PAIR TO OPEN LIVE TRADINGVIEW CHART',
+                'TAP ANY PAIR TO OPEN TRADINGVIEW INTERACTIVE CHART',
                 style: TextStyle(
                   color: Color(0xFFFFB800),
                   fontSize: 11,
@@ -308,7 +280,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
                               ),
                               child: Center(
                                 child: Text(
-                                  pair.symbol.length >= 3 ? pair.symbol.substring(0, 3) : pair.symbol,
+                                  pair.symbol,
                                   style: const TextStyle(
                                     color: Color(0xFFFFB800),
                                     fontWeight: FontWeight.bold,
@@ -340,7 +312,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
                                           borderRadius: BorderRadius.circular(4),
                                         ),
                                         child: Text(
-                                          pair.isMarketOpen ? 'LIVE' : 'CLOSED',
+                                          pair.isMarketOpen ? 'LIVE 24/7' : 'CLOSED',
                                           style: TextStyle(
                                             color: pair.isMarketOpen ? Colors.greenAccent : Colors.redAccent,
                                             fontSize: 9,
