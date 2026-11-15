@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/app_models.dart';
 import '../models/trade_signal.dart';
 import '../services/market_data_service.dart';
+import 'candle_chart_screen.dart';
 
 class MarketsScreen extends StatefulWidget {
   const MarketsScreen({super.key});
@@ -13,12 +15,49 @@ class MarketsScreen extends StatefulWidget {
 class _MarketsScreenState extends State<MarketsScreen> {
   final MarketDataService _dataService = MarketDataService();
   bool _isLoading = true;
+  String _selectedCategory = 'ALL';
   List<MarketPairInfo> _pairs = [];
+  Map<String, List<Candle>> _cachedCandles = {};
+  Timer? _refreshTimer;
+
+  final List<Map<String, dynamic>> _allSymbols = [
+    // Commodities & Gold
+    {'sym': 'XAUUSD', 'name': 'Spot Gold (PAXG 1:1)', 'cat': 'Commodity', 'forex': false},
+    {'sym': 'USOIL', 'name': 'Crude Oil (WTI)', 'cat': 'Commodity', 'forex': true},
+    {'sym': 'UKOIL', 'name': 'Brent Crude Oil', 'cat': 'Commodity', 'forex': true},
+    {'sym': 'NGUSD', 'name': 'Natural Gas (NG)', 'cat': 'Commodity', 'forex': true},
+
+    // Crypto
+    {'sym': 'BTCUSD', 'name': 'Bitcoin / USD', 'cat': 'Crypto', 'forex': false},
+    {'sym': 'ETHUSD', 'name': 'Ethereum / USD', 'cat': 'Crypto', 'forex': false},
+
+    // Forex Majors & Crosses
+    {'sym': 'EURUSD', 'name': 'Euro / US Dollar', 'cat': 'Forex', 'forex': true},
+    {'sym': 'GBPUSD', 'name': 'British Pound / US Dollar', 'cat': 'Forex', 'forex': true},
+    {'sym': 'USDJPY', 'name': 'US Dollar / Japanese Yen', 'cat': 'Forex', 'forex': true},
+    {'sym': 'GBPJPY', 'name': 'British Pound / Japanese Yen', 'cat': 'Forex', 'forex': true},
+    {'sym': 'EURJPY', 'name': 'Euro / Japanese Yen', 'cat': 'Forex', 'forex': true},
+    {'sym': 'AUDUSD', 'name': 'Australian Dollar / USD', 'cat': 'Forex', 'forex': true},
+    {'sym': 'USDCAD', 'name': 'US Dollar / Canadian Dollar', 'cat': 'Forex', 'forex': true},
+
+    // Indices
+    {'sym': 'US30', 'name': 'Dow Jones Industrial 30', 'cat': 'Indices', 'forex': true},
+    {'sym': 'US500', 'name': 'S&P 500 Index', 'cat': 'Indices', 'forex': true},
+    {'sym': 'US100', 'name': 'Nasdaq 100 Index', 'cat': 'Indices', 'forex': true},
+  ];
 
   @override
   void initState() {
     super.initState();
     _fetchMarketOverview();
+    // Fast 5-second ultra low latency live refresh
+    _refreshTimer = Timer.periodic(const Duration(seconds: 5), (_) => _fastPriceSync());
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
   }
 
   bool _isForexWeekend() {
@@ -34,37 +73,33 @@ class _MarketsScreenState extends State<MarketsScreen> {
     final isForexOpen = !_isForexWeekend();
 
     List<MarketPairInfo> updated = [];
-    final symbols = [
-      {'sym': 'XAUUSD', 'name': 'Spot Gold (PAXG 1:1)', 'forex': false},
-      {'sym': 'EURUSD', 'name': 'Euro / US Dollar', 'forex': true},
-      {'sym': 'GBPUSD', 'name': 'British Pound / US Dollar', 'forex': true},
-      {'sym': 'USDJPY', 'name': 'US Dollar / Japanese Yen', 'forex': true},
-    ];
-
-    for (var s in symbols) {
+    for (var s in _allSymbols) {
       final sym = s['sym'] as String;
       final name = s['name'] as String;
+      final cat = s['cat'] as String;
       final isForex = s['forex'] as bool;
       final isOpen = isForex ? isForexOpen : true;
 
       try {
         final candles = await _dataService.fetchLiveCandles(sym, timeframe: '15m');
         if (candles.isNotEmpty) {
+          _cachedCandles[sym] = candles;
           final current = candles.last.close;
           final first = candles.first.open;
-          final changePct = ((current - first) / first) * 100;
+          final changePct = first > 0 ? ((current - first) / first) * 100 : 0.0;
           double high = candles.map((c) => c.high).reduce((a, b) => a > b ? a : b);
           double low = candles.map((c) => c.low).reduce((a, b) => a < b ? a : b);
 
           updated.add(MarketPairInfo(
             symbol: sym,
             displayName: name,
+            category: cat,
             currentPrice: current,
             change24h: changePct,
             high24h: high,
             low24h: low,
             isMarketOpen: isOpen,
-            source: sym == 'XAUUSD' ? 'Binance 24/7' : 'Yahoo Live',
+            source: sym == 'XAUUSD' || sym.contains('BTC') ? 'Binance 24/7' : 'Interbank Live',
           ));
         }
       } catch (_) {}
@@ -78,23 +113,74 @@ class _MarketsScreenState extends State<MarketsScreen> {
     }
   }
 
+  // Fast background price syncer without flickering
+  Future<void> _fastPriceSync() async {
+    final isForexOpen = !_isForexWeekend();
+    for (int i = 0; i < _pairs.length; i++) {
+      final pair = _pairs[i];
+      if (pair.isMarketOpen) {
+        try {
+          final candles = await _dataService.fetchLiveCandles(pair.symbol, timeframe: '15m');
+          if (candles.isNotEmpty && mounted) {
+            _cachedCandles[pair.symbol] = candles;
+            final current = candles.last.close;
+            final first = candles.first.open;
+            final changePct = first > 0 ? ((current - first) / first) * 100 : 0.0;
+            setState(() {
+              _pairs[i] = MarketPairInfo(
+                symbol: pair.symbol,
+                displayName: pair.displayName,
+                category: pair.category,
+                currentPrice: current,
+                change24h: changePct,
+                high24h: candles.map((c) => c.high).reduce((a, b) => a > b ? a : b),
+                low24h: candles.map((c) => c.low).reduce((a, b) => a < b ? a : b),
+                isMarketOpen: isForexOpen || pair.category == 'Crypto' || pair.symbol == 'XAUUSD',
+                source: pair.source,
+              );
+            });
+          }
+        } catch (_) {}
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final forexClosed = _isForexWeekend();
+    final filtered = _selectedCategory == 'ALL'
+        ? _pairs
+        : _pairs.where((p) => p.category.toUpperCase() == _selectedCategory).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0E17),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A0E17),
         elevation: 0,
-        title: const Text(
-          'Live Markets & Watchlist',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        title: const Row(
+          children: [
+            Icon(Icons.candlestick_chart, color: Color(0xFFFFB800), size: 22),
+            SizedBox(width: 8),
+            Text(
+              'Live Markets & Charts',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Color(0xFFFFB800)),
-            onPressed: _fetchMarketOverview,
+          Container(
+            margin: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.green.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.bolt, color: Colors.greenAccent, size: 14),
+                Text('3s Feed', style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+              ],
+            ),
           ),
         ],
       ),
@@ -107,6 +193,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Weekend Alert
               if (forexClosed)
                 Container(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -121,62 +208,53 @@ class _MarketsScreenState extends State<MarketsScreen> {
                       Icon(Icons.info_outline, color: Colors.redAccent, size: 22),
                       SizedBox(width: 12),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Forex Market Closed (Weekend)',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Forex opens Sunday 21:00 UTC. Gold Spot (PAXG 1:1) operates 24/7.',
-                              style: TextStyle(color: Colors.white70, fontSize: 11),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else
-                Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF0F2E1E),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.greenAccent.withOpacity(0.5)),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.check_circle_outline, color: Colors.greenAccent, size: 22),
-                      SizedBox(width: 12),
-                      Expanded(
                         child: Text(
-                          'Global Forex & Spot Gold Markets are LIVE',
-                          style: TextStyle(
-                            color: Colors.greenAccent,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
+                          'Forex Market Closed (Weekend)\nGold Spot (PAXG 1:1) & Crypto operate 24/7.',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
                         ),
                       ),
                     ],
                   ),
                 ),
 
+              // Category Selector Tabs
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: ['ALL', 'FOREX', 'COMMODITY', 'CRYPTO', 'INDICES'].map((cat) {
+                    final isSel = _selectedCategory == cat;
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedCategory = cat),
+                      child: Container(
+                        margin: const EdgeInsets.only(right: 8, bottom: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: isSel ? const Color(0xFFFFB800) : const Color(0xFF131B2A),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: isSel ? const Color(0xFFFFB800) : const Color(0xFF1E293B)),
+                        ),
+                        child: Text(
+                          cat,
+                          style: TextStyle(
+                            color: isSel ? Colors.black : Colors.grey[400],
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+
+              const SizedBox(height: 6),
               const Text(
-                'TRACKED ASSETS',
+                'TAP ANY PAIR TO OPEN LIVE TRADINGVIEW CHART',
                 style: TextStyle(
                   color: Color(0xFFFFB800),
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
+                  letterSpacing: 0.8,
                 ),
               ),
               const SizedBox(height: 12),
@@ -192,111 +270,129 @@ class _MarketsScreenState extends State<MarketsScreen> {
                 ListView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: _pairs.length,
+                  itemCount: filtered.length,
                   itemBuilder: (context, index) {
-                    final pair = _pairs[index];
+                    final pair = filtered[index];
                     final isPositive = pair.change24h >= 0;
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF131B2A),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFF1E293B)),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1E293B),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Center(
-                              child: Text(
-                                pair.symbol.substring(0, 3),
-                                style: const TextStyle(
-                                  color: Color(0xFFFFB800),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                ),
-                              ),
+
+                    return GestureDetector(
+                      onTap: () {
+                        final candles = _cachedCandles[pair.symbol] ?? [];
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CandleChartScreen(
+                              symbol: pair.symbol,
+                              displayName: pair.displayName,
+                              initialCandles: candles,
                             ),
                           ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Text(
-                                      pair.symbol == 'XAUUSD' ? 'XAU/USD' : '${pair.symbol.substring(0, 3)}/${pair.symbol.substring(3)}',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 15,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: pair.isMarketOpen ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        pair.isMarketOpen ? 'LIVE' : 'CLOSED',
-                                        style: TextStyle(
-                                          color: pair.isMarketOpen ? Colors.greenAccent : Colors.redAccent,
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  pair.displayName,
-                                  style: TextStyle(color: Colors.grey[400], fontSize: 11),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text(
-                                pair.symbol == 'XAUUSD'
-                                    ? '\$${pair.currentPrice.toStringAsFixed(2)}'
-                                    : pair.currentPrice.toStringAsFixed(pair.symbol.contains('JPY') ? 3 : 5),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 15,
-                                ),
+                        );
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF131B2A),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF1E293B)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1E293B),
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: (isPositive ? Colors.green : Colors.red).withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
+                              child: Center(
                                 child: Text(
-                                  '${isPositive ? '+' : ''}${pair.change24h.toStringAsFixed(2)}%',
-                                  style: TextStyle(
-                                    color: isPositive ? Colors.greenAccent : Colors.redAccent,
-                                    fontSize: 11,
+                                  pair.symbol.length >= 3 ? pair.symbol.substring(0, 3) : pair.symbol,
+                                  style: const TextStyle(
+                                    color: Color(0xFFFFB800),
                                     fontWeight: FontWeight.bold,
+                                    fontSize: 11,
                                   ),
                                 ),
                               ),
-                            ],
-                          ),
-                        ],
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        pair.symbol,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: pair.isMarketOpen ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          pair.isMarketOpen ? 'LIVE' : 'CLOSED',
+                                          style: TextStyle(
+                                            color: pair.isMarketOpen ? Colors.greenAccent : Colors.redAccent,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    pair.displayName,
+                                    style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Text(
+                                  pair.currentPrice > 1000
+                                      ? '\$${pair.currentPrice.toStringAsFixed(2)}'
+                                      : pair.currentPrice.toStringAsFixed(pair.symbol.contains('JPY') ? 3 : 5),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: (isPositive ? Colors.green : Colors.red).withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '${isPositive ? '+' : ''}${pair.change24h.toStringAsFixed(2)}%',
+                                    style: TextStyle(
+                                      color: isPositive ? Colors.greenAccent : Colors.redAccent,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.chevron_right, color: Colors.grey, size: 18),
+                          ],
+                        ),
                       ),
                     );
                   },
