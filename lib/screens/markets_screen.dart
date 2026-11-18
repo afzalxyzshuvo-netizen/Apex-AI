@@ -1,9 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/app_models.dart';
-import '../models/trade_signal.dart';
 import '../services/market_data_service.dart';
-import 'candle_chart_screen.dart';
 
 class MarketsScreen extends StatefulWidget {
   const MarketsScreen({super.key});
@@ -17,22 +15,17 @@ class _MarketsScreenState extends State<MarketsScreen> {
   bool _isLoading = true;
   String _selectedCategory = 'ALL';
   List<MarketPairInfo> _pairs = [];
-  Map<String, List<Candle>> _cachedCandles = {};
+  Map<String, double?> _prevPrices = {};
   Timer? _refreshTimer;
 
   final List<Map<String, dynamic>> _allSymbols = [
-    // 1. Direct Crypto 24/7 (BTC, ETH, SOL) - Top Priority
-    {'sym': 'BTC', 'name': 'Bitcoin (Spot 24/7 Live)', 'cat': 'Crypto', 'forex': false},
-    {'sym': 'ETH', 'name': 'Ethereum (Spot 24/7 Live)', 'cat': 'Crypto', 'forex': false},
-    {'sym': 'SOL', 'name': 'Solana (Spot 24/7 Live)', 'cat': 'Crypto', 'forex': false},
-
-    // 2. Commodities & Spot Gold 24/7
-    {'sym': 'XAUUSD', 'name': 'Spot Gold (PAXG 1:1 Live)', 'cat': 'Commodity', 'forex': false},
+    {'sym': 'BTC', 'name': 'Bitcoin (Spot 24/7)', 'cat': 'Crypto', 'forex': false},
+    {'sym': 'ETH', 'name': 'Ethereum (Spot 24/7)', 'cat': 'Crypto', 'forex': false},
+    {'sym': 'SOL', 'name': 'Solana (Spot 24/7)', 'cat': 'Crypto', 'forex': false},
+    {'sym': 'XAUUSD', 'name': 'Spot Gold (PAXG Live)', 'cat': 'Commodity', 'forex': false},
     {'sym': 'USOIL', 'name': 'Crude Oil (WTI)', 'cat': 'Commodity', 'forex': true},
     {'sym': 'UKOIL', 'name': 'Brent Crude Oil', 'cat': 'Commodity', 'forex': true},
     {'sym': 'NGUSD', 'name': 'Natural Gas (NG)', 'cat': 'Commodity', 'forex': true},
-
-    // 3. Forex Majors & Crosses
     {'sym': 'EURUSD', 'name': 'Euro / US Dollar', 'cat': 'Forex', 'forex': true},
     {'sym': 'GBPUSD', 'name': 'British Pound / US Dollar', 'cat': 'Forex', 'forex': true},
     {'sym': 'USDJPY', 'name': 'US Dollar / Japanese Yen', 'cat': 'Forex', 'forex': true},
@@ -40,8 +33,6 @@ class _MarketsScreenState extends State<MarketsScreen> {
     {'sym': 'EURJPY', 'name': 'Euro / Japanese Yen', 'cat': 'Forex', 'forex': true},
     {'sym': 'AUDUSD', 'name': 'Australian Dollar / USD', 'cat': 'Forex', 'forex': true},
     {'sym': 'USDCAD', 'name': 'US Dollar / Canadian Dollar', 'cat': 'Forex', 'forex': true},
-
-    // 4. Global Indices
     {'sym': 'US30', 'name': 'Dow Jones Industrial 30', 'cat': 'Indices', 'forex': true},
     {'sym': 'US500', 'name': 'S&P 500 Index', 'cat': 'Indices', 'forex': true},
     {'sym': 'US100', 'name': 'Nasdaq 100 Index', 'cat': 'Indices', 'forex': true},
@@ -51,8 +42,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
   void initState() {
     super.initState();
     _fetchMarketOverview();
-    // 2-second rapid live tick for Crypto & Gold
-    _refreshTimer = Timer.periodic(const Duration(seconds: 2), (_) => _fastPriceSync());
+    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (_) => _fastPriceSync());
   }
 
   @override
@@ -84,7 +74,6 @@ class _MarketsScreenState extends State<MarketsScreen> {
       try {
         final candles = await _dataService.fetchLiveCandles(sym, timeframe: '15m');
         if (candles.isNotEmpty) {
-          _cachedCandles[sym] = candles;
           final current = candles.last.close;
           final first = candles.first.open;
           final changePct = first > 0 ? ((current - first) / first) * 100 : 0.0;
@@ -123,23 +112,127 @@ class _MarketsScreenState extends State<MarketsScreen> {
           final instant = await _dataService.fetchInstantPrice(pair.symbol);
           if (instant != null && mounted) {
             setState(() {
-              final oldP = _pairs[i];
+              _prevPrices[pair.symbol] = pair.currentPrice;
               _pairs[i] = MarketPairInfo(
-                symbol: oldP.symbol,
-                displayName: oldP.displayName,
-                category: oldP.category,
+                symbol: pair.symbol,
+                displayName: pair.displayName,
+                category: pair.category,
                 currentPrice: instant,
-                change24h: oldP.change24h,
-                high24h: instant > oldP.high24h ? instant : oldP.high24h,
-                low24h: instant < oldP.low24h ? instant : oldP.low24h,
+                change24h: pair.change24h,
+                high24h: instant > pair.high24h ? instant : pair.high24h,
+                low24h: instant < pair.low24h ? instant : pair.low24h,
                 isMarketOpen: true,
-                source: oldP.source,
+                source: pair.source,
               );
             });
           }
         } catch (_) {}
       }
     }
+  }
+
+  Widget _getMarketIcon(String symbol) {
+    IconData? icon;
+    String? text;
+    Color bgColor;
+    Color textColor = Colors.white;
+
+    switch (symbol) {
+      case 'BTC':
+        text = '₿';
+        bgColor = const Color(0xFFF7931A);
+        break;
+      case 'ETH':
+        text = 'Ξ';
+        bgColor = const Color(0xFF627EEA);
+        break;
+      case 'SOL':
+        text = '◎';
+        bgColor = const Color(0xFF00FFA3);
+        textColor = Colors.black;
+        break;
+      case 'XAUUSD':
+        icon = Icons.workspace_premium;
+        bgColor = const Color(0xFFFFD700);
+        textColor = Colors.black;
+        break;
+      case 'EURUSD':
+        text = '€/\$';
+        bgColor = const Color(0xFF1565C0);
+        break;
+      case 'GBPUSD':
+        text = '£/\$';
+        bgColor = const Color(0xFF283593);
+        break;
+      case 'USDJPY':
+        text = '¥/\$';
+        bgColor = const Color(0xFFD32F2F);
+        break;
+      case 'GBPJPY':
+        text = '£/¥';
+        bgColor = const Color(0xFFC2185B);
+        break;
+      case 'EURJPY':
+        text = '€/¥';
+        bgColor = const Color(0xFF00838F);
+        break;
+      case 'AUDUSD':
+        text = 'A/\$';
+        bgColor = const Color(0xFF2E7D32);
+        break;
+      case 'USDCAD':
+        text = '\$/C';
+        bgColor = const Color(0xFF689F38);
+        break;
+      case 'USOIL':
+        icon = Icons.local_gas_station;
+        bgColor = const Color(0xFF5D4037);
+        break;
+      case 'UKOIL':
+        icon = Icons.local_gas_station;
+        bgColor = const Color(0xFF3E2723);
+        break;
+      case 'NGUSD':
+        icon = Icons.local_fire_department;
+        bgColor = const Color(0xFFE65100);
+        break;
+      case 'US30':
+        text = 'DJ';
+        bgColor = const Color(0xFF1A237E);
+        break;
+      case 'US500':
+        text = 'SP';
+        bgColor = const Color(0xFF0D47A1);
+        break;
+      case 'US100':
+        text = 'NQ';
+        bgColor = const Color(0xFF4A148C);
+        break;
+      default:
+        text = symbol.substring(0, min(2, symbol.length));
+        bgColor = const Color(0xFF37474F);
+    }
+
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: icon != null
+            ? Icon(icon, color: textColor, size: 22)
+            : Text(
+                text ?? '?',
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.w900,
+                  fontSize: text != null && text.length > 2 ? 10 : 16,
+                ),
+              ),
+      ),
+    );
   }
 
   @override
@@ -155,9 +248,9 @@ class _MarketsScreenState extends State<MarketsScreen> {
         elevation: 0,
         title: const Row(
           children: [
-            Icon(Icons.candlestick_chart, color: Color(0xFFFFB800), size: 22),
+            Icon(Icons.show_chart, color: Color(0xFFFFB800), size: 22),
             SizedBox(width: 8),
-            Text('Live Markets & Charts', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            Text('Live Markets', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           ],
         ),
         actions: [
@@ -170,8 +263,9 @@ class _MarketsScreenState extends State<MarketsScreen> {
             ),
             child: const Row(
               children: [
-                Icon(Icons.bolt, color: Colors.greenAccent, size: 14),
-                Text(' LIVE 2s TICK', style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                Icon(Icons.circle, color: Colors.greenAccent, size: 8),
+                SizedBox(width: 4),
+                Text('LIVE', style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -186,7 +280,7 @@ class _MarketsScreenState extends State<MarketsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Category Tabs (CRYPTO first to easily check 24/7 running BTC)
+              // Category Tabs
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -216,18 +310,6 @@ class _MarketsScreenState extends State<MarketsScreen> {
                 ),
               ),
 
-              const SizedBox(height: 6),
-              const Text(
-                'TAP ANY PAIR TO OPEN TRADINGVIEW INTERACTIVE CHART',
-                style: TextStyle(
-                  color: Color(0xFFFFB800),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              const SizedBox(height: 12),
-
               if (_isLoading && _pairs.isEmpty)
                 const Center(
                   child: Padding(
@@ -243,125 +325,106 @@ class _MarketsScreenState extends State<MarketsScreen> {
                   itemBuilder: (context, index) {
                     final pair = filtered[index];
                     final isPositive = pair.change24h >= 0;
+                    final prev = _prevPrices[pair.symbol];
+                    final priceUp = prev != null && pair.currentPrice > prev;
+                    final priceDown = prev != null && pair.currentPrice < prev;
 
-                    return GestureDetector(
-                      onTap: () {
-                        final candles = _cachedCandles[pair.symbol] ?? [];
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => CandleChartScreen(
-                              symbol: pair.symbol,
-                              displayName: pair.displayName,
-                              initialCandles: candles,
-                            ),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF131B2A),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFF1E293B)),
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF131B2A),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: priceUp
+                              ? Colors.green.withOpacity(0.3)
+                              : priceDown
+                                  ? Colors.red.withOpacity(0.3)
+                                  : const Color(0xFF1E293B),
                         ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1E293B),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  pair.symbol,
-                                  style: const TextStyle(
-                                    color: Color(0xFFFFB800),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Text(
-                                        pair.symbol,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: pair.isMarketOpen ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          pair.isMarketOpen ? 'LIVE 24/7' : 'CLOSED',
-                                          style: TextStyle(
-                                            color: pair.isMarketOpen ? Colors.greenAccent : Colors.redAccent,
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    pair.displayName,
-                                    style: TextStyle(color: Colors.grey[400], fontSize: 11),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
+                      ),
+                      child: Row(
+                        children: [
+                          _getMarketIcon(pair.symbol),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  pair.currentPrice > 1000
-                                      ? '\$${pair.currentPrice.toStringAsFixed(2)}'
-                                      : pair.currentPrice.toStringAsFixed(pair.symbol.contains('JPY') ? 3 : 5),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: (isPositive ? Colors.green : Colors.red).withOpacity(0.2),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    '${isPositive ? '+' : ''}${pair.change24h.toStringAsFixed(2)}%',
-                                    style: TextStyle(
-                                      color: isPositive ? Colors.greenAccent : Colors.redAccent,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
+                                Row(
+                                  children: [
+                                    Text(
+                                      pair.symbol,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
                                     ),
-                                  ),
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: pair.isMarketOpen ? Colors.green.withOpacity(0.2) : Colors.red.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(3),
+                                      ),
+                                      child: Text(
+                                        pair.isMarketOpen ? 'LIVE' : 'CLOSED',
+                                        style: TextStyle(
+                                          color: pair.isMarketOpen ? Colors.greenAccent : Colors.redAccent,
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  pair.displayName,
+                                  style: TextStyle(color: Colors.grey[500], fontSize: 10),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.chevron_right, color: Colors.grey, size: 18),
-                          ],
-                        ),
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (priceUp) const Icon(Icons.arrow_drop_up, color: Colors.greenAccent, size: 20),
+                                  if (priceDown) const Icon(Icons.arrow_drop_down, color: Colors.redAccent, size: 20),
+                                  Text(
+                                    _formatPrice(pair.symbol, pair.currentPrice),
+                                    style: TextStyle(
+                                      color: priceUp ? Colors.greenAccent : priceDown ? Colors.redAccent : Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: (isPositive ? Colors.green : Colors.red).withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  '${isPositive ? '+' : ''}${pair.change24h.toStringAsFixed(2)}%',
+                                  style: TextStyle(
+                                    color: isPositive ? Colors.greenAccent : Colors.redAccent,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     );
                   },
@@ -371,5 +434,11 @@ class _MarketsScreenState extends State<MarketsScreen> {
         ),
       ),
     );
+  }
+
+  String _formatPrice(String symbol, double price) {
+    if (price > 1000) return '\$${price.toStringAsFixed(2)}';
+    if (symbol.contains('JPY')) return price.toStringAsFixed(3);
+    return price.toStringAsFixed(5);
   }
 }
